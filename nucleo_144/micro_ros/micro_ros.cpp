@@ -44,7 +44,7 @@ void init(UART_HandleTypeDef* huart3)
 		printf("Error on default allocators (line %d)\n", __LINE__);
 }
 
-void micro_ros_init(void* arg)
+void micro_ros(void* arg)
 {
 	UART_HandleTypeDef* huart3 = (UART_HandleTypeDef*)arg;
 

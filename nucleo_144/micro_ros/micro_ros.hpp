@@ -5,7 +5,7 @@ extern "C"
 {
 #endif
 
-void micro_ros_init(void* arg);
+void micro_ros(void* arg);
 
 #ifdef __cplusplus
 }

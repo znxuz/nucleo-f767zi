@@ -23,7 +23,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <nucleo_144/micro_ros/micro_ros_init.hpp>
+#include <nucleo_144/micro_ros/micro_ros.hpp>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -161,7 +161,7 @@ int main(void)
     .stack_size = 3000 * 4,
     .priority = (osPriority_t) osPriorityNormal,
   };
-  osThreadNew(micro_ros_init, &huart3, &micro_ros_init_attributes);
+  osThreadNew(micro_ros, &huart3, &micro_ros_init_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

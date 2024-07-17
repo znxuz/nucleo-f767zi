@@ -197,7 +197,7 @@ DIR_GUARD = @mkdir -p "$(@D)"
 
 C_INCLUDES += -I$(CURDIR)
 
-CPP_SOURCES += nucleo_144/micro_ros/micro_ros_init.cpp
+CPP_SOURCES += nucleo_144/micro_ros/micro_ros.cpp
 
 OBJECTS += $(addprefix $(BUILD_DIR)/, $(CPP_SOURCES:.cpp=.o))
 vpath %.cpp $(sort $(dir $(CPP_SOURCES)))
