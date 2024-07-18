@@ -1,15 +1,43 @@
+#include <rcl/allocator.h>
+#include <rcl/node.h>
+#include <rcl/publisher.h>
+#include <rclc/publisher.h>
+#include <rclc/types.h>
 #include <rcl/error_handling.h>
 #include <rcl/rcl.h>
+#include <rcl/subscription.h>
 #include <rclc/executor.h>
+#include <rclc/executor_handle.h>
 #include <rclc/rclc.h>
+#include <rclc/subscription.h>
+#include <rcutils/logging.h>
 #include <rmw_microros/rmw_microros.h>
 #include <rmw_microxrcedds_c/config.h>
 #include <uxr/client/transport.h>
 
+#include <std_msgs/msg/char.h>
+#include <std_msgs/msg/int8.h>
 #include <std_msgs/msg/int32.h>
+#include <std_msgs/msg/string.h>
 
 #include <cmsis_os2.h>
 #include <stm32f7xx_hal.h>
+
+#include <experimental/source_location>
+
+#include "logger.hpp"
+
+static inline void
+rcl_ret_check(rcl_ret_t ret_code,
+			  const std::experimental::source_location location
+			  = std::experimental::source_location::current())
+{
+	if (ret_code) {
+		printf("Failed status on line %d: %d in %s",
+			   static_cast<int>(location.line()), static_cast<int>(ret_code),
+			   location.file_name());
+	}
+}
 
 extern "C"
 {
@@ -27,8 +55,12 @@ void* microros_reallocate(void* pointer, size_t size, void* state);
 void* microros_zero_allocate(size_t number_of_elements, size_t size_of_element,
 							 void* state);
 
-void init(UART_HandleTypeDef* huart3)
+rcl_allocator_t allocator;
+rclc_support_t support;
+
+void init(void* arg)
 {
+	UART_HandleTypeDef* huart3 = (UART_HandleTypeDef*)arg;
 	rmw_uros_set_custom_transport(
 		true, (void*)huart3, cubemx_transport_open, cubemx_transport_close,
 		cubemx_transport_write, cubemx_transport_read);
@@ -42,37 +74,53 @@ void init(UART_HandleTypeDef* huart3)
 
 	if (!rcutils_set_default_allocator(&freeRTOS_allocator))
 		printf("Error on default allocators (line %d)\n", __LINE__);
+
+	allocator = rcl_get_default_allocator();
+	rclc_support_init(&support, 0, NULL, &allocator);
+}
+
+void int_in_callback(const void* msg)
+{
+	logger.log("int data in");
+}
+
+void timer_callback(rcl_timer_t* timer, int64_t last_call_time)
+{
+	logger.log("timer callback");
 }
 
 void micro_ros(void* arg)
 {
-	UART_HandleTypeDef* huart3 = (UART_HandleTypeDef*)arg;
+	init(arg);
 
-	init(huart3);
-
-	rcl_publisher_t publisher;
-	std_msgs__msg__Int32 msg;
-	rclc_support_t support;
-	rcl_allocator_t allocator;
 	rcl_node_t node;
+	rclc_node_init_default(&node, "micro_ros_node", "", &support);
 
-	allocator = rcl_get_default_allocator();
-	rclc_support_init(&support, 0, NULL, &allocator);
-	rclc_node_init_default(&node, "cubemx_node", "", &support);
+	logger.init(&node);
 
-	rclc_publisher_init_default(
-		&publisher, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int32),
-		"cubemx_publisher");
+	auto first_exe = rclc_executor_get_zero_initialized_executor();
+	rclc_executor_init(&first_exe, &support.context, 1, &allocator);
 
-	msg.data = 0;
+	rcl_subscription_t sub_int_in;
+	rclc_subscription_init_default(
+	&sub_int_in, &node,
+	ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), "int_in");
+	auto int_msg = std_msgs__msg__Int8();
+	rclc_executor_add_subscription(&first_exe, &sub_int_in, &int_msg,
+	&int_in_callback, ON_NEW_DATA);
+
+	// auto second_exe = rclc_executor_get_zero_initialized_executor();
+	// rclc_executor_init(&second_exe, &support.context, 1, &allocator);
+	// auto timer = rcl_get_zero_initialized_timer();
+	// const unsigned int timer_timeout = 1000;
+	// rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(timer_timeout),
+	// timer_callback, true);
+	// rclc_executor_add_timer(&second_exe, &timer);
 
 	for (;;) {
-		rcl_ret_t ret = rcl_publish(&publisher, &msg, NULL);
-		if (ret != RCL_RET_OK) {
-			printf("Error publishing (line %d)\n", __LINE__);
-		}
+		rclc_executor_spin_some(&first_exe, RCL_MS_TO_NS(10));
+		// rclc_executor_spin_some(&second_exe, RCL_MS_TO_NS(1));
 
-		msg.data++;
 		osDelay(1000);
 	}
 }
