@@ -81,7 +81,8 @@ void init(void* arg)
 
 void int_in_callback(const void* msg)
 {
-	logger.log("int data in");
+	const auto* int_msg = reinterpret_cast<const std_msgs__msg__Int8*>(msg);
+	logger.log("int data in: %d", int_msg->data);
 }
 
 void timer_callback(rcl_timer_t* timer, int64_t last_call_time)
