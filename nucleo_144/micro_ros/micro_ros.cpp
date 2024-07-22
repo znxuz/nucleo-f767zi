@@ -1,24 +1,24 @@
+#include <cstdio>
 #include <rcl/allocator.h>
+#include <rcl/error_handling.h>
 #include <rcl/node.h>
 #include <rcl/publisher.h>
-#include <rclc/publisher.h>
-#include <rclc/types.h>
-#include <rcl/error_handling.h>
 #include <rcl/rcl.h>
 #include <rcl/subscription.h>
 #include <rclc/executor.h>
 #include <rclc/executor_handle.h>
+#include <rclc/publisher.h>
 #include <rclc/rclc.h>
 #include <rclc/subscription.h>
+#include <rclc/types.h>
 #include <rcutils/logging.h>
 #include <rmw_microros/rmw_microros.h>
 #include <rmw_microxrcedds_c/config.h>
 #include <uxr/client/transport.h>
 
-#include <std_msgs/msg/char.h>
+#include <geometry_msgs/msg/twist.h>
 #include <std_msgs/msg/int8.h>
-#include <std_msgs/msg/int32.h>
-#include <std_msgs/msg/string.h>
+#include <std_msgs/msg/float64_multi_array.h>
 
 #include <cmsis_os2.h>
 #include <stm32f7xx_hal.h>
@@ -27,17 +27,17 @@
 
 #include "logger.hpp"
 
-static inline void
-rcl_ret_check(rcl_ret_t ret_code,
-			  const std::experimental::source_location location
-			  = std::experimental::source_location::current())
-{
-	if (ret_code) {
-		printf("Failed status on line %d: %d in %s",
-			   static_cast<int>(location.line()), static_cast<int>(ret_code),
-			   location.file_name());
-	}
-}
+// static inline void
+// rcl_ret_check(rcl_ret_t ret_code,
+			  // const std::experimental::source_location location
+			  // = std::experimental::source_location::current())
+// {
+	// if (ret_code) {
+		// printf("Failed status on line %d: %d in %s",
+			   // static_cast<int>(location.line()), static_cast<int>(ret_code),
+			   // location.file_name());
+	// }
+// }
 
 extern "C"
 {
@@ -79,15 +79,58 @@ void init(void* arg)
 	rclc_support_init(&support, 0, NULL, &allocator);
 }
 
-void int_in_callback(const void* msg)
+void pose_callback(const void* arg)
 {
-	const auto* int_msg = reinterpret_cast<const std_msgs__msg__Int8*>(msg);
-	logger.log("int data in: %d", int_msg->data);
+	const auto* msg = reinterpret_cast<const geometry_msgs__msg__Twist*>(arg);
+	logger.log("pose x: %.2f, y: %.2f, theta: %.2f", msg->linear.x,
+			   msg->linear.y, msg->angular.z);
 }
 
-void timer_callback(rcl_timer_t* timer, int64_t last_call_time)
+rcl_publisher_t pub_odometry;
+rcl_publisher_t pub_wheel_vel;
+void odometry_callback(rcl_timer_t* timer, int64_t last_call_time)
 {
-	logger.log("timer callback");
+	geometry_msgs__msg__Twist pose_msg{};
+	pose_msg.linear.x = 1;
+	pose_msg.linear.y = 2;
+	pose_msg.angular.z = 0.5;
+	(void)rcl_publish(&pub_odometry, &pose_msg, NULL);
+
+	std_msgs__msg__Float64MultiArray msg;
+	std_msgs__msg__Float64MultiArray__init(&msg);
+	// Set up the MultiArrayLayout
+	msg.layout.data_offset = 0;
+	// Set up the MultiArrayDimension
+	std_msgs__msg__MultiArrayDimension dim;
+	char label[] = "1d_array";
+	dim.label.data = label;
+	dim.label.size = strlen("1d_array");
+	dim.size = 4;         // Number of elements in the array
+	dim.stride = 1;       // This is a 1D array, so stride is 1
+	// Initialize the dimensions array
+	msg.layout.dim.data = &dim;
+	msg.layout.dim.size = 1;
+	msg.layout.dim.capacity = 1;
+	// Allocate memory for the data array and assign values
+	msg.data.data = new double[4]{};
+	msg.data.size = dim.size;
+	msg.data.capacity = dim.size;
+	msg.data.data[0] = 1.1;
+	msg.data.data[1] = 2.2;
+	msg.data.data[2] = 3.3;
+	msg.data.data[3] = 4.4;
+
+	(void)rcl_publish(&pub_wheel_vel, &msg, NULL);
+	delete[] msg.data.data;
+}
+
+void wheel_vel_callback(const void* arg)
+{
+	const auto* wheel_vel_msg
+		= reinterpret_cast<const std_msgs__msg__Float64MultiArray*>(arg);
+	logger.log("wheel vel elems: [%.2f], [%.2f], [%.2f], [%.2f]",
+			   wheel_vel_msg->data.data[0], wheel_vel_msg->data.data[1],
+			   wheel_vel_msg->data.data[2], wheel_vel_msg->data.data[3]);
 }
 
 void micro_ros(void* arg)
@@ -99,31 +142,77 @@ void micro_ros(void* arg)
 
 	logger.init(&node);
 
-	auto first_exe = rclc_executor_get_zero_initialized_executor();
-	rclc_executor_init(&first_exe, &support.context, 1, &allocator);
+	auto odometry_exe = rclc_executor_get_zero_initialized_executor();
+	rclc_executor_init(&odometry_exe, &support.context, 1, &allocator);
 
-	rcl_subscription_t sub_int_in;
+	rclc_publisher_init_default(
+		&pub_odometry, &node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "odometry");
+	auto timer = rcl_get_zero_initialized_timer();
+	const unsigned int timer_timeout = 1000;
+	rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(timer_timeout),
+							 odometry_callback, true);
+	rclc_executor_add_timer(&odometry_exe, &timer);
+
+	auto interpolate_exe = rclc_executor_get_zero_initialized_executor();
+	rclc_executor_init(&interpolate_exe, &support.context, 2, &allocator);
+
+	rcl_subscription_t sub_odometry;
 	rclc_subscription_init_default(
-	&sub_int_in, &node,
-	ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Int8), "int_in");
-	auto int_msg = std_msgs__msg__Int8();
-	rclc_executor_add_subscription(&first_exe, &sub_int_in, &int_msg,
-	&int_in_callback, ON_NEW_DATA);
+		&sub_odometry, &node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "odometry");
+	auto odometry_msg = geometry_msgs__msg__Twist();
+	rclc_executor_add_subscription(&interpolate_exe, &sub_odometry,
+								   &odometry_msg, &pose_callback, ON_NEW_DATA);
 
-	// auto second_exe = rclc_executor_get_zero_initialized_executor();
-	// rclc_executor_init(&second_exe, &support.context, 1, &allocator);
-	// auto timer = rcl_get_zero_initialized_timer();
-	// const unsigned int timer_timeout = 1000;
-	// rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(timer_timeout),
-	// timer_callback, true);
-	// rclc_executor_add_timer(&second_exe, &timer);
+	rcl_subscription_t sub_cmd_vel;
+	rclc_subscription_init_default(
+		&sub_cmd_vel, &node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel");
+	auto cmd_vel_msg = geometry_msgs__msg__Twist();
+	rclc_executor_add_subscription(&interpolate_exe, &sub_cmd_vel, &cmd_vel_msg,
+								   &pose_callback, ON_NEW_DATA);
 
+	rclc_publisher_init_default(
+		&pub_wheel_vel, &node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray), "wheel_vel");
+
+	rcl_subscription_t sub_wheel_vel;
+	rclc_subscription_init_default(
+		&sub_wheel_vel, &node,
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
+		"wheel_vel");
+	auto action_exe = rclc_executor_get_zero_initialized_executor();
+	rclc_executor_init(&action_exe, &support.context, 1, &allocator);
+
+	// TODO encapsulate as a struct
+	std_msgs__msg__Float64MultiArray wheel_vel_msg;
+	std_msgs__msg__Float64MultiArray__init(&wheel_vel_msg);
+	// Set up the MultiArrayLayout
+	wheel_vel_msg.layout.data_offset = 0;
+	// Set up the MultiArrayDimension
+	std_msgs__msg__MultiArrayDimension dim;
+	char label[] = "1d_array";
+	dim.label.data = label;
+	dim.label.size = strlen(label);
+	dim.size = 4;         // Number of elements in the array
+	dim.stride = 1;       // This is a 1D array, so stride is 1
+	// Initialize the dimensions array
+	wheel_vel_msg.layout.dim.data = &dim;
+	wheel_vel_msg.layout.dim.size = 1;
+	wheel_vel_msg.layout.dim.capacity = 1;
+	// Allocate memory for the data array and assign values
+	wheel_vel_msg.data.data = new double[4]{};
+	wheel_vel_msg.data.size = dim.size;
+	wheel_vel_msg.data.capacity = dim.size;
+	rclc_executor_add_subscription(&action_exe, &sub_wheel_vel,
+			&wheel_vel_msg, &wheel_vel_callback, ON_NEW_DATA);
+
+	logger.log("starting the loop");
 	for (;;) {
-		rclc_executor_spin_some(&first_exe, RCL_MS_TO_NS(10));
-		// rclc_executor_spin_some(&second_exe, RCL_MS_TO_NS(1));
-
-		osDelay(1000);
+		rclc_executor_spin_some(&odometry_exe, RCL_MS_TO_NS(1));
+		rclc_executor_spin_some(&interpolate_exe, RCL_MS_TO_NS(1));
+		rclc_executor_spin_some(&action_exe, RCL_MS_TO_NS(1));
 	}
 }
-
 }

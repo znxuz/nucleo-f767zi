@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdarg.h>
 #include <rcl/node.h>
 #include <rcl/publisher.h>
 #include <rclc/publisher.h>
