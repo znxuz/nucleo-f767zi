@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdio>
+#include <cstring>
 #include <stdarg.h>
 #include <rcl/node.h>
 #include <rcl/publisher.h>
@@ -19,16 +21,22 @@ struct logger
 
 	void log(const char* format, ...)
 	{
+		char numbering[20]{};
+
+		std::snprintf(numbering, sizeof(numbering), "%d. ", this->counter++);
+		std::strcpy(msg, numbering);
+
 		va_list arglist;
 		va_start(arglist, format);
-		vsnprintf(msg, MAX_MSG_SIZE, format, arglist);
+		vsnprintf(msg + strlen(numbering), MAX_MSG_SIZE, format, arglist);
 		va_end(arglist);
 		msg[MAX_MSG_SIZE - 1] = '\0';
 
 		std_msgs__msg__String log_msg{msg, strlen(msg), MAX_MSG_SIZE};
-		[[ maybe_unused ]] auto ret = rcl_publish(&pub_logger, &log_msg, NULL);
+		[[maybe_unused]] auto ret = rcl_publish(&pub_logger, &log_msg, NULL);
 	}
 
+	size_t counter = 0;
 	rcl_publisher_t pub_logger;
 	char msg[MAX_MSG_SIZE]{};
 };

@@ -80,15 +80,23 @@ void init(void* arg)
 	rclc_support_init(&support, 0, NULL, &allocator);
 }
 
+rcl_publisher_t pub_wheel_vel;
 void pose_callback(const void* arg)
 {
-	const auto* msg = reinterpret_cast<const geometry_msgs__msg__Twist*>(arg);
+	const auto* pose_msg = reinterpret_cast<const geometry_msgs__msg__Twist*>(arg);
 	logger.log("pose callback pose: [x: %.2f, y: %.2f, theta: %.2f]",
-			   msg->linear.x, msg->linear.y, msg->angular.z);
+			   pose_msg->linear.x, pose_msg->linear.y, pose_msg->angular.z);
+
+	wheel_vel_msg wheel_msg;
+	wheel_msg[0] = 1.3;
+	wheel_msg[1] = 2.5;
+	wheel_msg[2] = 3.7;
+	wheel_msg[3] = 7.3;
+
+	rcl_ret_check(rcl_publish(&pub_wheel_vel, &wheel_msg.msg, NULL));
 }
 
 rcl_publisher_t pub_odometry;
-rcl_publisher_t pub_wheel_vel;
 void odometry_callback(rcl_timer_t* timer, int64_t last_call_time)
 {
 	geometry_msgs__msg__Twist pose_msg{};
@@ -96,14 +104,6 @@ void odometry_callback(rcl_timer_t* timer, int64_t last_call_time)
 	pose_msg.linear.y = 2;
 	pose_msg.angular.z = 0.5;
 	rcl_ret_check(rcl_publish(&pub_odometry, &pose_msg, NULL));
-
-	wheel_vel_msg msg;
-	msg[0] = 1.3;
-	msg[1] = 2.5;
-	msg[2] = 3.7;
-	msg[3] = 7.3;
-
-	rcl_ret_check(rcl_publish(&pub_wheel_vel, &msg.msg, NULL));
 }
 
 void wheel_vel_callback(const void* arg)
@@ -132,7 +132,7 @@ void micro_ros(void* arg)
 		&pub_odometry, &node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "odometry");
 	auto timer = rcl_get_zero_initialized_timer();
-	const unsigned int timer_timeout = 1000;
+	const unsigned int timer_timeout = 2000;
 	rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(timer_timeout),
 							 odometry_callback, true);
 	rclc_executor_add_timer(&odometry_exe, &timer);
