@@ -26,19 +26,9 @@
 #include <experimental/source_location>
 
 #include "logger.hpp"
+#include "rcl_ret_check.h"
 #include "wheel_vel_msg.h"
-
-static inline void
-rcl_ret_check(rcl_ret_t ret_code,
-			  const std::experimental::source_location location
-			  = std::experimental::source_location::current())
-{
-	if (ret_code) {
-		printf("Failed status on line %d: %d in %s",
-			   static_cast<int>(location.line()), static_cast<int>(ret_code),
-			   location.file_name());
-	}
-}
+#include "nucleo_144/micro_ros/odometry.hpp"
 
 extern "C"
 {
@@ -56,8 +46,8 @@ void* microros_reallocate(void* pointer, size_t size, void* state);
 void* microros_zero_allocate(size_t number_of_elements, size_t size_of_element,
 							 void* state);
 
-rcl_allocator_t allocator;
-rclc_support_t support;
+static rcl_allocator_t allocator;
+static rclc_support_t support;
 
 void init(void* arg)
 {
@@ -78,18 +68,6 @@ void init(void* arg)
 
 	allocator = rcl_get_default_allocator();
 	rclc_support_init(&support, 0, NULL, &allocator);
-}
-
-rcl_publisher_t pub_odometry;
-void odometry_callback(rcl_timer_t* timer, int64_t last_call_time)
-{
-	geometry_msgs__msg__Twist pose_msg{};
-	pose_msg.linear.x = 1;
-	pose_msg.linear.y = 2;
-	pose_msg.angular.z = 0.5;
-	rcl_ret_check(rcl_publish(&pub_odometry, &pose_msg, NULL));
-	logger.log("odometry callback published: [x: %.2f, y: %.2f, theta: %.2f]",
-			   pose_msg.linear.x, pose_msg.linear.y, pose_msg.angular.z);
 }
 
 rcl_publisher_t pub_wheel_vel;
@@ -126,17 +104,11 @@ void micro_ros(void* arg)
 
 	logger.init(&node);
 
-	auto odometry_exe = rclc_executor_get_zero_initialized_executor();
-	rclc_executor_init(&odometry_exe, &support.context, 1, &allocator);
-
-	rclc_publisher_init_default(
-		&pub_odometry, &node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "odometry");
-	auto timer = rcl_get_zero_initialized_timer();
-	const unsigned int timer_timeout = 10000;
-	rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(timer_timeout),
-							 odometry_callback, true);
-	rclc_executor_add_timer(&odometry_exe, &timer);
+	auto odometry_exe
+		= rclc_executor_get_zero_initialized_executor(); // TODO: maybe
+														 // encapsulate as a
+														 // struct
+	odometry_init(&odometry_exe, &node, &support, &allocator);
 
 	auto interpolate_exe = rclc_executor_get_zero_initialized_executor();
 	rclc_executor_init(
