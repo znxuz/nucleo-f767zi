@@ -80,6 +80,18 @@ void init(void* arg)
 	rclc_support_init(&support, 0, NULL, &allocator);
 }
 
+rcl_publisher_t pub_odometry;
+void odometry_callback(rcl_timer_t* timer, int64_t last_call_time)
+{
+	geometry_msgs__msg__Twist pose_msg{};
+	pose_msg.linear.x = 1;
+	pose_msg.linear.y = 2;
+	pose_msg.angular.z = 0.5;
+	rcl_ret_check(rcl_publish(&pub_odometry, &pose_msg, NULL));
+	logger.log("odometry callback published: [x: %.2f, y: %.2f, theta: %.2f]",
+			   pose_msg.linear.x, pose_msg.linear.y, pose_msg.angular.z);
+}
+
 rcl_publisher_t pub_wheel_vel;
 void pose_callback(const void* arg)
 {
@@ -92,28 +104,17 @@ void pose_callback(const void* arg)
 	wheel_msg[1] = 2.5;
 	wheel_msg[2] = 3.7;
 	wheel_msg[3] = 7.3;
-
 	rcl_ret_check(rcl_publish(&pub_wheel_vel, &wheel_msg.msg, NULL));
-}
-
-rcl_publisher_t pub_odometry;
-void odometry_callback(rcl_timer_t* timer, int64_t last_call_time)
-{
-	geometry_msgs__msg__Twist pose_msg{};
-	pose_msg.linear.x = 1;
-	pose_msg.linear.y = 2;
-	pose_msg.angular.z = 0.5;
-	rcl_ret_check(rcl_publish(&pub_odometry, &pose_msg, NULL));
 }
 
 void wheel_vel_callback(const void* arg)
 {
 	const auto* wheel_vel_msg
-		= reinterpret_cast<const std_msgs__msg__Float64MultiArray*>(arg);
+		= reinterpret_cast<const struct wheel_vel_msg*>(arg);
 	logger.log(
 		"wheel_vel_callback wheel velocities: [%.2f], [%.2f], [%.2f], [%.2f]",
-		wheel_vel_msg->data.data[0], wheel_vel_msg->data.data[1],
-		wheel_vel_msg->data.data[2], wheel_vel_msg->data.data[3]);
+		wheel_vel_msg->operator[](0), wheel_vel_msg->operator[](1),
+		wheel_vel_msg->operator[](2), wheel_vel_msg->operator[](3));
 }
 
 void micro_ros(void* arg)
@@ -132,13 +133,15 @@ void micro_ros(void* arg)
 		&pub_odometry, &node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "odometry");
 	auto timer = rcl_get_zero_initialized_timer();
-	const unsigned int timer_timeout = 2000;
+	const unsigned int timer_timeout = 10000;
 	rclc_timer_init_default2(&timer, &support, RCL_MS_TO_NS(timer_timeout),
 							 odometry_callback, true);
 	rclc_executor_add_timer(&odometry_exe, &timer);
 
 	auto interpolate_exe = rclc_executor_get_zero_initialized_executor();
-	rclc_executor_init(&interpolate_exe, &support.context, 2, &allocator);
+	rclc_executor_init(
+		&interpolate_exe, &support.context, 2,
+		&allocator); // TODO: number of handles is given here, extract as config
 
 	rcl_subscription_t sub_odometry;
 	rclc_subscription_init_default(
@@ -158,7 +161,8 @@ void micro_ros(void* arg)
 
 	rclc_publisher_init_default(
 		&pub_wheel_vel, &node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray), "wheel_vel");
+		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
+		"wheel_vel");
 
 	rcl_subscription_t sub_wheel_vel;
 	rclc_subscription_init_default(
@@ -169,8 +173,8 @@ void micro_ros(void* arg)
 	rclc_executor_init(&action_exe, &support.context, 1, &allocator);
 
 	wheel_vel_msg msg;
-	rclc_executor_add_subscription(&action_exe, &sub_wheel_vel,
-			&msg.msg, &wheel_vel_callback, ON_NEW_DATA);
+	rclc_executor_add_subscription(&action_exe, &sub_wheel_vel, &msg.msg,
+								   &wheel_vel_callback, ON_NEW_DATA);
 
 	logger.log("debug: starting the loop");
 	for (;;) {
