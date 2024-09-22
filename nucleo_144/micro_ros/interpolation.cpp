@@ -19,6 +19,7 @@ extern logger logger;
 
 extern "C"
 {
+static rclc_executor_t interpolation_exe;
 static rcl_subscription_t sub_odometry;
 static rcl_subscription_t sub_cmd_vel;
 static geometry_msgs__msg__Twist odometry_msg{};
@@ -29,7 +30,7 @@ static void pose_callback(const void* arg)
 {
 	const auto* pose_msg
 		= reinterpret_cast<const geometry_msgs__msg__Twist*>(arg);
-	logger.log("pose callback pose: [x: %.2f, y: %.2f, theta: %.2f]",
+	logger.log("pose_cb pose: [x: %.2f, y: %.2f, theta: %.2f]",
 			   pose_msg->linear.x, pose_msg->linear.y, pose_msg->angular.z);
 
 	wheel_vel_msg wheel_msg;
@@ -40,29 +41,30 @@ static void pose_callback(const void* arg)
 	rcl_ret_check(rcl_publish(&pub_wheel_vel, &wheel_msg.msg, NULL));
 }
 
-void interpolation_init(rclc_executor_t* interpolation_exe, rcl_node_t* node,
-						rclc_support_t* support,
-						const rcl_allocator_t* allocator)
+rclc_executor_t* interpolation_init(rcl_node_t* node, rclc_support_t* support,
+									const rcl_allocator_t* allocator)
 {
 	rclc_executor_init(
-		interpolation_exe, &support->context, 2,
+		&interpolation_exe, &support->context, 2,
 		allocator); // TODO: number of handles is given here, extract as config
 
 	rclc_subscription_init_default(
 		&sub_odometry, node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "odometry");
-	rclc_executor_add_subscription(interpolation_exe, &sub_odometry,
+	rclc_executor_add_subscription(&interpolation_exe, &sub_odometry,
 								   &odometry_msg, &pose_callback, ON_NEW_DATA);
 
 	rclc_subscription_init_default(
 		&sub_cmd_vel, node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel");
-	rclc_executor_add_subscription(interpolation_exe, &sub_cmd_vel,
+	rclc_executor_add_subscription(&interpolation_exe, &sub_cmd_vel,
 								   &cmd_vel_msg, &pose_callback, ON_NEW_DATA);
 
 	rclc_publisher_init_default(
 		&pub_wheel_vel, node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
 		"wheel_vel");
+
+	return &interpolation_exe;
 }
 }

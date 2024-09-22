@@ -17,6 +17,7 @@ extern logger logger;
 
 extern "C"
 {
+static rclc_executor_t odometry_exe;
 static inline const unsigned int TIMER_TIMEOUT = 5000;
 static auto timer = rcl_get_zero_initialized_timer();
 static geometry_msgs__msg__Twist pose_msg{};
@@ -28,14 +29,14 @@ static void odometry_callback(rcl_timer_t* timer, int64_t last_call_time)
 	pose_msg.linear.y = 2;
 	pose_msg.angular.z = 0.5;
 	rcl_ret_check(rcl_publish(&pub_odometry, &pose_msg, NULL));
-	logger.log("odometry callback published: [x: %.2f, y: %.2f, theta: %.2f]",
+	logger.log("odometry_cb published: [x: %.2f, y: %.2f, theta: %.2f]",
 			   pose_msg.linear.x, pose_msg.linear.y, pose_msg.angular.z);
 }
 
-void odometry_init(rclc_executor_t* odometry_exe, const rcl_node_t* node,
-				   rclc_support_t* support, const rcl_allocator_t* allocator)
+rclc_executor_t* odometry_init(const rcl_node_t* node, rclc_support_t* support,
+				   const rcl_allocator_t* allocator)
 {
-	rclc_executor_init(odometry_exe, &support->context, 1, allocator);
+	rclc_executor_init(&odometry_exe, &support->context, 1, allocator);
 
 	rclc_publisher_init_default(
 		&pub_odometry, node,
@@ -43,6 +44,8 @@ void odometry_init(rclc_executor_t* odometry_exe, const rcl_node_t* node,
 
 	rclc_timer_init_default2(&timer, support, RCL_MS_TO_NS(TIMER_TIMEOUT),
 							 odometry_callback, true);
-	rclc_executor_add_timer(odometry_exe, &timer);
+	rclc_executor_add_timer(&odometry_exe, &timer);
+
+	return &odometry_exe;
 }
 }

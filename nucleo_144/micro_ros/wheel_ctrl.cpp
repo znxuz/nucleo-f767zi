@@ -17,7 +17,7 @@ static void wheel_vel_callback(const void* arg)
 	const auto* wheel_vel_msg
 		= reinterpret_cast<const struct wheel_vel_msg*>(arg);
 	logger.log(
-		"wheel_vel_callback wheel velocities: [%.2f], [%.2f], [%.2f], [%.2f]",
+		"wheel_vel_cb wheel velocities: [%.2f], [%.2f], [%.2f], [%.2f]",
 		wheel_vel_msg->operator[](0), wheel_vel_msg->operator[](1),
 		wheel_vel_msg->operator[](2), wheel_vel_msg->operator[](3));
 }

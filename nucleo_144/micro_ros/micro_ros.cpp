@@ -29,7 +29,6 @@
 
 #include "logger.hpp"
 #include "nucleo_144/micro_ros/wheel_ctrl.hpp"
-#include "wheel_vel_msg.h"
 
 logger logger;
 
@@ -49,6 +48,7 @@ void* microros_reallocate(void* pointer, size_t size, void* state);
 void* microros_zero_allocate(size_t number_of_elements, size_t size_of_element,
 							 void* state);
 
+static rcl_node_t node;
 static rcl_allocator_t allocator;
 static rclc_support_t support;
 
@@ -71,29 +71,22 @@ void init(void* arg)
 
 	allocator = rcl_get_default_allocator();
 	rclc_support_init(&support, 0, NULL, &allocator);
+	rclc_node_init_default(&node, "micro_ros_node", "", &support);
 }
 
 void micro_ros(void* arg)
 {
 	init(arg);
-
-	rcl_node_t node;
-	rclc_node_init_default(&node, "micro_ros_node", "", &support);
-
 	logger.init(&node);
 
-	auto odometry_exe = rclc_executor_get_zero_initialized_executor();
-	odometry_init(&odometry_exe, &node, &support, &allocator);
-
-	auto interpolation_exe = rclc_executor_get_zero_initialized_executor();
-	interpolation_init(&interpolation_exe, &node, &support, &allocator);
-
+	auto* odometry_exe = odometry_init(&node, &support, &allocator);
+	auto* interpolation_exe = interpolation_init(&node, &support, &allocator);
 	auto* wheel_ctrl_exe = wheel_ctrl_init(&node, &support, &allocator);
 
 	logger.log("debug: starting the loop");
 	for (;;) {
-		rclc_executor_spin_some(&odometry_exe, RCL_MS_TO_NS(1));
-		rclc_executor_spin_some(&interpolation_exe, RCL_MS_TO_NS(1));
+		rclc_executor_spin_some(odometry_exe, RCL_MS_TO_NS(1));
+		rclc_executor_spin_some(interpolation_exe, RCL_MS_TO_NS(1));
 		rclc_executor_spin_some(wheel_ctrl_exe, RCL_MS_TO_NS(1));
 	}
 }

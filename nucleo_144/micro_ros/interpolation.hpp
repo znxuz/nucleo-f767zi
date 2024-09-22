@@ -7,7 +7,6 @@
 
 extern "C"
 {
-void interpolation_init(rclc_executor_t* interpolation_exe, rcl_node_t* node,
-						rclc_support_t* support,
-						const rcl_allocator_t* allocator);
+rclc_executor_t* interpolation_init(rcl_node_t* node, rclc_support_t* support,
+									const rcl_allocator_t* allocator);
 }
