@@ -51,7 +51,6 @@ void interpolation_init(rclc_executor_t* interpolation_exe, rcl_node_t* node,
 	rclc_subscription_init_default(
 		&sub_odometry, node,
 		ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "odometry");
-
 	rclc_executor_add_subscription(interpolation_exe, &sub_odometry,
 								   &odometry_msg, &pose_callback, ON_NEW_DATA);
 

@@ -28,6 +28,7 @@
 #include <nucleo_144/micro_ros/odometry.hpp>
 
 #include "logger.hpp"
+#include "nucleo_144/micro_ros/wheel_ctrl.hpp"
 #include "wheel_vel_msg.h"
 
 logger logger;
@@ -72,16 +73,6 @@ void init(void* arg)
 	rclc_support_init(&support, 0, NULL, &allocator);
 }
 
-void wheel_vel_callback(const void* arg)
-{
-	const auto* wheel_vel_msg
-		= reinterpret_cast<const struct wheel_vel_msg*>(arg);
-	logger.log(
-		"wheel_vel_callback wheel velocities: [%.2f], [%.2f], [%.2f], [%.2f]",
-		wheel_vel_msg->operator[](0), wheel_vel_msg->operator[](1),
-		wheel_vel_msg->operator[](2), wheel_vel_msg->operator[](3));
-}
-
 void micro_ros(void* arg)
 {
 	init(arg);
@@ -91,32 +82,19 @@ void micro_ros(void* arg)
 
 	logger.init(&node);
 
-	// TODO: maybe encapsulate as a struct
-
-	auto odometry_exe
-		= rclc_executor_get_zero_initialized_executor();
+	auto odometry_exe = rclc_executor_get_zero_initialized_executor();
 	odometry_init(&odometry_exe, &node, &support, &allocator);
 
 	auto interpolation_exe = rclc_executor_get_zero_initialized_executor();
 	interpolation_init(&interpolation_exe, &node, &support, &allocator);
 
-	rcl_subscription_t sub_wheel_vel;
-	rclc_subscription_init_default(
-		&sub_wheel_vel, &node,
-		ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
-		"wheel_vel");
-	auto action_exe = rclc_executor_get_zero_initialized_executor();
-	rclc_executor_init(&action_exe, &support.context, 1, &allocator);
-
-	wheel_vel_msg msg;
-	rclc_executor_add_subscription(&action_exe, &sub_wheel_vel, &msg.msg,
-								   &wheel_vel_callback, ON_NEW_DATA);
+	auto* wheel_ctrl_exe = wheel_ctrl_init(&node, &support, &allocator);
 
 	logger.log("debug: starting the loop");
 	for (;;) {
 		rclc_executor_spin_some(&odometry_exe, RCL_MS_TO_NS(1));
 		rclc_executor_spin_some(&interpolation_exe, RCL_MS_TO_NS(1));
-		rclc_executor_spin_some(&action_exe, RCL_MS_TO_NS(1));
+		rclc_executor_spin_some(wheel_ctrl_exe, RCL_MS_TO_NS(1));
 	}
 }
 }
