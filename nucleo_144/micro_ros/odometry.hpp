@@ -7,8 +7,6 @@
 
 extern "C"
 {
-
 void odometry_init(rclc_executor_t* odometry_exe, const rcl_node_t* node,
 				   rclc_support_t* support, const rcl_allocator_t* allocator);
-
 }

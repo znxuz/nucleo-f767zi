@@ -2,13 +2,11 @@
 
 #include <cstdio>
 #include <cstring>
-#include <stdarg.h>
 #include <rcl/node.h>
-#include <rcl/publisher.h>
 #include <rclc/publisher.h>
 #include <std_msgs/msg/string.h>
 
-static constexpr uint8_t MAX_MSG_SIZE = 100;
+static inline constexpr uint8_t MAX_MSG_SIZE = 100;
 
 struct logger
 {
@@ -40,5 +38,3 @@ struct logger
 	rcl_publisher_t pub_logger;
 	char msg[MAX_MSG_SIZE]{};
 };
-
-static logger logger;

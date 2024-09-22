@@ -199,7 +199,8 @@ C_INCLUDES += -I$(CURDIR)
 
 CPP_SOURCES += \
 			   nucleo_144/micro_ros/micro_ros.cpp \
-			   nucleo_144/micro_ros/odometry.cpp
+			   nucleo_144/micro_ros/odometry.cpp \
+			   nucleo_144/micro_ros/interpolation.cpp
 
 OBJECTS += $(addprefix $(BUILD_DIR)/, $(CPP_SOURCES:.cpp=.o))
 vpath %.cpp $(sort $(dir $(CPP_SOURCES)))
