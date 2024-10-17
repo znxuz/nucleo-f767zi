@@ -5,8 +5,7 @@
 #include <rclc/executor.h>
 #include <rclc/executor_handle.h>
 
-extern "C"
-{
+extern "C" {
 rclc_executor_t* interpolation_init(rcl_node_t* node, rclc_support_t* support,
-									const rcl_allocator_t* allocator);
+                                    const rcl_allocator_t* allocator);
 }

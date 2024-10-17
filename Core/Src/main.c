@@ -426,11 +426,7 @@ static void MX_GPIO_Init(void)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
-  for(;;)
-  {
-    osDelay(1);
-  }
+	vTaskDelete(NULL);
   /* USER CODE END 5 */
 }
 
