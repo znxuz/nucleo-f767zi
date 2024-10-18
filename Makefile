@@ -264,6 +264,10 @@ $(BUILD_DIR):
 flash: $(BUILD_DIR)/$(TARGET).bin
 	st-flash --reset write $(BUILD_DIR)/$(TARGET).bin 0x8000000
 
+reflash:
+	$(MAKE) clean
+	$(MAKE) flash
+
 clangd_db: clean $(BUILD_DIR)
 	@bear --output build/compile_commands.json -- make -j
 

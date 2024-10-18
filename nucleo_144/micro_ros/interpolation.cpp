@@ -24,6 +24,7 @@ static rcl_subscription_t sub_cmd_vel;
 static geometry_msgs__msg__Twist odometry_msg{};
 static geometry_msgs__msg__Twist cmd_vel_msg{};
 static rcl_publisher_t pub_wheel_vel;
+static wheel_vel_msg wheel_msg{1.3, 2.5, 3.7, 7.3};
 
 static void pose_callback(const void* arg) {
   const auto* pose_msg =
@@ -31,11 +32,8 @@ static void pose_callback(const void* arg) {
   logger.log("pose_cb pose: [x: %.2f, y: %.2f, theta: %.2f]",
              pose_msg->linear.x, pose_msg->linear.y, pose_msg->angular.z);
 
-  wheel_vel_msg wheel_msg;
-  wheel_msg[0] = 1.3;
-  wheel_msg[1] = 2.5;
-  wheel_msg[2] = 3.7;
-  wheel_msg[3] = 7.3;
+  ++wheel_msg[0];
+
   rcl_ret_check(rcl_publish(&pub_wheel_vel, &wheel_msg.msg, NULL));
 }
 
