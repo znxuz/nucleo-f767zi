@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <cstring>
 
-static inline constexpr uint8_t MAX_MSG_SIZE = 100;
+inline constexpr uint8_t MAX_MSG_SIZE = 100;
 
 struct logger {
   void init(rcl_node_t* node) {

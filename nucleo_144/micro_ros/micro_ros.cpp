@@ -21,11 +21,12 @@
 
 #include <cstdio>
 #include <experimental/source_location>
-#include <nucleo_144/micro_ros/interpolation.hpp>
-#include <nucleo_144/micro_ros/odometry.hpp>
 
+#include "encoder_data.hpp"
+#include "interpolation.hpp"
 #include "logger.hpp"
-#include "nucleo_144/micro_ros/wheel_ctrl.hpp"
+#include "odometry.hpp"
+#include "wheel_ctrl.hpp"
 
 logger logger;
 
@@ -72,15 +73,17 @@ void micro_ros(void* arg) {
   init(arg);
   logger.init(&node);
 
-  auto* odometry_exe = odometry_init(&node, &support, &allocator);
+  // auto* odometry_exe = odometry_init(&node, &support, &allocator);
+  auto* encoder_pub_exe = encoder_data_exe_init(&node, &support, &allocator);
   auto* interpolation_exe = interpolation_init(&node, &support, &allocator);
   auto* wheel_ctrl_exe = wheel_ctrl_init(&node, &support, &allocator);
 
   logger.log("debug: starting the loop");
   for (;;) {
-    rclc_executor_spin_some(odometry_exe, RCL_MS_TO_NS(1));
-    rclc_executor_spin_some(interpolation_exe, RCL_MS_TO_NS(1));
-    rclc_executor_spin_some(wheel_ctrl_exe, RCL_MS_TO_NS(1));
+    // rclc_executor_spin_some(odometry_exe, RCL_MS_TO_NS(1));
+    rclc_executor_spin_some(encoder_pub_exe, RCL_MS_TO_NS(10));
+    rclc_executor_spin_some(interpolation_exe, RCL_MS_TO_NS(10));
+    rclc_executor_spin_some(wheel_ctrl_exe, RCL_MS_TO_NS(10));
   }
 }
 }

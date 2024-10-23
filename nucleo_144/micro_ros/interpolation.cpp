@@ -6,61 +6,57 @@
 #include <rclc/executor.h>
 #include <rclc/executor_handle.h>
 #include <rclc/subscription.h>
-#include <rclc/timer.h>
-#include <rclc/types.h>
 
-#include <experimental/source_location>
+#include <array>
 
+#include "WheelDataWrapper.hpp"
 #include "logger.hpp"
 #include "rcl_ret_check.hpp"
-#include "WheelDataWrapper.hpp"
 
 extern logger logger;
 
 extern "C" {
-static rclc_executor_t interpolation_exe;
-static rcl_subscription_t sub_odometry;
+static rclc_executor_t interpolation_exe =
+    rclc_executor_get_zero_initialized_executor();
+
+// static rcl_subscription_t sub_odometry;
+// static geometry_msgs__msg__Twist odometry_msg{};
+
 static rcl_subscription_t sub_cmd_vel;
-static geometry_msgs__msg__Twist odometry_msg{};
 static geometry_msgs__msg__Twist cmd_vel_msg{};
 static rcl_publisher_t pub_wheel_vel;
 
-static void pose_callback(const void* arg) {
-  const auto* pose_msg =
-      reinterpret_cast<const geometry_msgs__msg__Twist*>(arg);
-  logger.log("pose_cb pose: [x: %.2f, y: %.2f, theta: %.2f]",
-             pose_msg->linear.x, pose_msg->linear.y, pose_msg->angular.z);
-
-  auto arr = std::array{1.3, 2.5, 3.7, 7.3};
-  WheelDataWrapper wheel_msg{arr};
+static void interpolation_cb(const void* arg) {
+  WheelDataWrapper<double, WheelDataType::VEL_SP> wheel_sp_msg{
+      std::array{1.3, 2.5, 3.7, 7.3}};
   static double counter = 1.2;
-  wheel_msg[0] += ++counter;
+  wheel_sp_msg[0] += ++counter;
 
-  rcl_ret_check(rcl_publish(&pub_wheel_vel, &wheel_msg.msg, NULL));
+  rcl_ret_check(rcl_publish(&pub_wheel_vel, &wheel_sp_msg.msg, NULL));
 }
 
 rclc_executor_t* interpolation_init(rcl_node_t* node, rclc_support_t* support,
                                     const rcl_allocator_t* allocator) {
-  rclc_executor_init(
-      &interpolation_exe, &support->context, 2,
-      allocator);  // TODO: number of handles is given here, extract as config
+  rcl_ret_check(
+      rclc_executor_init(&interpolation_exe, &support->context, 1, allocator));
 
-  rclc_subscription_init_default(
-      &sub_odometry, node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "odometry");
-  rclc_executor_add_subscription(&interpolation_exe, &sub_odometry,
-                                 &odometry_msg, pose_callback, ON_NEW_DATA);
+  // rclc_subscription_init_default(
+  //     &sub_odometry, node,
+  //     ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "odometry");
+  // rclc_executor_add_subscription(&interpolation_exe, &sub_odometry,
+  //                                &odometry_msg, pose_callback, ON_NEW_DATA);
 
-  rclc_subscription_init_default(
+  rcl_ret_check(rclc_subscription_init_default(
       &sub_cmd_vel, node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel");
-  rclc_executor_add_subscription(&interpolation_exe, &sub_cmd_vel, &cmd_vel_msg,
-                                 pose_callback, ON_NEW_DATA);
+      ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel"));
+  rcl_ret_check(rclc_executor_add_subscription(&interpolation_exe, &sub_cmd_vel,
+                                               &cmd_vel_msg, &interpolation_cb,
+                                               ON_NEW_DATA));
 
-  rclc_publisher_init_default(
+  rcl_ret_check(rclc_publisher_init_default(
       &pub_wheel_vel, node,
       ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float64MultiArray),
-      "wheel_vel");
+      "wheel_vel"));
 
   return &interpolation_exe;
 }
