@@ -7,25 +7,26 @@
 #include <rmw_microros/time_sync.h>
 
 #include <array>
-#include <nucleo_144/micro_ros/logger.hpp>
 #include <nucleo_144/micro_ros/rcl_ret_check.hpp>
 
 #include "WheelDataWrapper.hpp"
-
-extern logger logger;
+#include "nucleo_144/micro_ros/logger.hpp"
 
 static constexpr uint8_t N_EXEC_HANDLES = 1;
-static constexpr uint16_t TIMER_TIMEOUT_MS = 1000;
+static constexpr uint16_t TIMER_TIMEOUT_MS = 2000;
 
 extern "C" {
 static auto encoder_pub_exe = rclc_executor_get_zero_initialized_executor();
 static auto timer = rcl_get_zero_initialized_timer();
 static rcl_publisher_t pub_encoder;
 
+extern logger logger;
+
 static void encoder_data_cb(rcl_timer_t* timer, int64_t time_diff) {
   WheelDataWrapper<double, WheelDataType::ENC_DELTA_RAD> enc_data{
       std::array<double, 4>{1, 2, 3, 4}};
 
+  logger.log("[en]: pub enc");
   rcl_ret_check(rcl_publish(&pub_encoder, &enc_data.msg, NULL));
 }
 

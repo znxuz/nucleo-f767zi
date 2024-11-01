@@ -6,6 +6,6 @@
 #include <rclc/executor_handle.h>
 
 extern "C" {
-rclc_executor_t* odometry_init(const rcl_node_t* node, rclc_support_t* support,
+rclc_executor_t* odometry_init(rcl_node_t* node, rclc_support_t* support,
                                const rcl_allocator_t* allocator);
 }

@@ -207,7 +207,8 @@ CPP_SOURCES += \
 			   nucleo_144/micro_ros/interpolation.cpp \
 			   nucleo_144/micro_ros/wheel_ctrl.cpp \
 			   nucleo_144/micro_ros/rcl_ret_check.cpp \
-			   nucleo_144/micro_ros/encoder_data.cpp
+			   nucleo_144/micro_ros/encoder_data.cpp \
+			   nucleo_144/micro_ros/param_srv.cpp
 
 OBJECTS += $(addprefix $(BUILD_DIR)/, $(CPP_SOURCES:.cpp=.o))
 vpath %.cpp $(sort $(dir $(CPP_SOURCES)))
