@@ -26,15 +26,13 @@
 #include "encoder_data.hpp"
 #include "interpolation.hpp"
 #include "logger.hpp"
-#include "nucleo_144/micro_ros/rcl_ret_check.hpp"
+#include "rcl_ret_check.hpp"
 #include "odometry.hpp"
-#include "param_srv.hpp"
 #include "wheel_ctrl.hpp"
 
 logger logger;
 
 extern "C" {
-
 bool cubemx_transport_open(struct uxrCustomTransport* transport);
 bool cubemx_transport_close(struct uxrCustomTransport* transport);
 size_t cubemx_transport_write(struct uxrCustomTransport* transport,
@@ -80,11 +78,9 @@ void micro_ros(void* arg) {
   auto* odometry_exe = odometry_init(&node, &support, &allocator);
   auto* interpolation_exe = interpolation_init(&node, &support, &allocator);
   auto* wheel_ctrl_exe = wheel_ctrl_init(&node, &support, &allocator);
-  // auto *param_srv_exe = param_srv_exe_init(&node, &support, &allocator);
 
   logger.log("debug: starting the loop");
   for (;;) {
-    // rclc_executor_spin_some(param_srv_exe, RCL_MS_TO_NS(2));
     rclc_executor_spin_some(encoder_pub_exe, RCL_MS_TO_NS(2));
     rclc_executor_spin_some(odometry_exe, RCL_MS_TO_NS(2));
     rclc_executor_spin_some(interpolation_exe, RCL_MS_TO_NS(2));
