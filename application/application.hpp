@@ -4,8 +4,9 @@
 extern "C" {
 #endif
 
-void micro_ros(void* arg);
+void application_start(void);
 
 #ifdef __cplusplus
 }
 #endif
+

@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-
-xhost +local:root
-
-docker run -it --rm --net=host --privileged -v /dev/shm:/dev/shm --env="DISPLAY" --env="QT_X11_NO_MITSHM=1" --volume="/tmp/.X11-unix:/tmp/.X11-unix:rw" ros2-jazzy-mine rqt_graph
