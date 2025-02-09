@@ -10,7 +10,7 @@
 
 #include "stm32f767xx.h"
 
-#define MEASURE_CYCCNT(func)                                             \
+#define LOG_CYCCNT(func)                                             \
   do {                                                                   \
     uint32_t timestamp;                                                  \
     timestamp = DWT->CYCCNT;                                             \
@@ -39,13 +39,14 @@ void func() { HAL_Delay(1000); }
 
 void task1(void*) {
   while (true) {
-    MEASURE_CYCCNT(func());
+    puts("measuring");
+    LOG_CYCCNT(func());
   }
 }
 
 void enable_dwt_cycle_count() {
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
-  DWT->LAR = 0xC5ACCE55;
+  DWT->LAR = 0xC5ACCE55; // software unlock
   DWT->CYCCNT = 1;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 }

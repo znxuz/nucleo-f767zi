@@ -2,6 +2,10 @@
 CAD.formats=
 CAD.pinconfig=
 CAD.provider=
+CORTEX_M7.CPU_DCache=Enabled
+CORTEX_M7.CPU_ICache=Enabled
+CORTEX_M7.FlashInterface=AXI_Enabled
+CORTEX_M7.IPParameters=FlashInterface,CPU_ICache,CPU_DCache
 ETH.IPParameters=MediaInterface,PHY_Name,PHY_Value,PhyAddress
 ETH.MediaInterface=HAL_ETH_RMII_MODE
 ETH.PHY_Name=LAN8742A_PHY_ADDRESS
