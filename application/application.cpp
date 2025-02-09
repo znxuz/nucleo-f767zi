@@ -8,10 +8,19 @@
 #include <unistd.h>
 #include <usart.h>
 
-extern "C" {
+#include "stm32f767xx.h"
+
+#define MEASURE_CYCCNT(func)                                             \
+  do {                                                                   \
+    uint32_t timestamp;                                                  \
+    timestamp = DWT->CYCCNT;                                             \
+    func;                                                                \
+    timestamp = DWT->CYCCNT - timestamp;                                 \
+    printf("%.07f\n", static_cast<double>(timestamp) / SystemCoreClock); \
+  } while (0)
 
 // redirect stdout stdout/stderr to uart
-int _write(int file, char* ptr, int len) {
+extern "C" int _write(int file, char* ptr, int len) {
   HAL_StatusTypeDef hstatus;
 
   if (file == STDOUT_FILENO || file == STDERR_FILENO) {
@@ -26,18 +35,24 @@ int _write(int file, char* ptr, int len) {
   return -1;
 }
 
-void func(void) {
-  HAL_Delay(500);
-}
+void func() { HAL_Delay(1000); }
 
 void task1(void*) {
   while (true) {
-    puts("hello world");
-    HAL_Delay(1000);
+    MEASURE_CYCCNT(func());
   }
 }
 
+void enable_dwt_cycle_count() {
+  CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+  DWT->LAR = 0xC5ACCE55;
+  DWT->CYCCNT = 1;
+  DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+}
+
 void application_start() {
+  enable_dwt_cycle_count();
+
   const osThreadAttr_t attr = {
       .name = "defaultTask",
       .stack_size = 128 * 4,
@@ -45,5 +60,4 @@ void application_start() {
   };
   osThreadNew(task1, NULL, &attr);
   osKernelStart();
-}
 }
