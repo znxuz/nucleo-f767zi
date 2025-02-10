@@ -203,6 +203,8 @@ DIR_GUARD = @mkdir -p "$(@D)"
 
 C_INCLUDES += -I$(CURDIR)
 
+CPP_INCLUDES +=
+CPPFLAGS += $(CPP_INCLUDES)
 CPP_SOURCES += \
 			   application/application.cpp
 
@@ -246,7 +248,7 @@ $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR)
 
 $(BUILD_DIR)/%.o: %.cpp Makefile | $(BUILD_DIR)
 	$(DIR_GUARD)
-	$(CPPC) -c $(CPPFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@
+	$(CPPC) -c $(CPPFLAGS) -Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.cpp=.lst)) $< -o $@
 
 $(BUILD_DIR)/%.o: %.s Makefile | $(BUILD_DIR)
 	$(DIR_GUARD)
