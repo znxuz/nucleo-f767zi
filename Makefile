@@ -159,11 +159,6 @@ endif
 # Generate dependency information
 CFLAGS += -MMD -MP -MF"$(@:%.o=%.d)"
 
-CPPFLAGS = $(CFLAGS) \
-		   -std=gnu++20 \
-		   -fno-rtti \
-		   -fno-use-cxa-atexit
-
 #######################################
 # LDFLAGS
 #######################################
@@ -195,6 +190,19 @@ C_SOURCES += third_party/micro_ros_stm32cubemx_utils/extra_sources/microros_tran
 print_cflags:
 	@echo $(CFLAGS)
 
+
+#######################################
+# build the application
+#######################################
+# list of objects
+OBJECTS += $(addprefix $(BUILD_DIR)/, $(C_SOURCES:.c=.o))
+vpath %.c $(sort $(dir $(C_SOURCES)))
+# list of ASM program objects
+OBJECTS += $(addprefix $(BUILD_DIR)/, $(ASM_SOURCES:.s=.o))
+vpath %.s $(sort $(dir $(ASM_SOURCES)))
+OBJECTS += $(addprefix $(BUILD_DIR)/, $(ASMM_SOURCES:.S=.o))
+vpath %.S $(sort $(dir $(ASMM_SOURCES)))
+
 #######################################
 # my addons
 #######################################
@@ -203,16 +211,15 @@ DIR_GUARD = @mkdir -p "$(@D)"
 
 C_INCLUDES += -I$(CURDIR)
 
-CPP_INCLUDES +=
-CPPFLAGS += $(CPP_INCLUDES)
+# CPP_INCLUDES += 
+CPPFLAGS = $(CFLAGS) \
+		   -std=gnu++20 \
+		   -fno-rtti \
+		   -fno-use-cxa-atexit \
+		   $(CPP_INCLUDES)
 CPP_SOURCES += \
 			   application/application.cpp
-
 OBJECTS += $(addprefix $(BUILD_DIR)/, $(CPP_SOURCES:.cpp=.o))
-vpath %.cpp $(sort $(dir $(CPP_SOURCES)))
-
-print_objects:
-	@echo $(OBJECTS)
 
 LDFLAGS += \
 		   -lstdc++ \
@@ -229,18 +236,6 @@ CFLAGS += -DMICRO_ROS_AGENT_IP=$(MICRO_ROS_AGENT_IP) \
 		  -DMICRO_ROS_AGENT_PORT=$(MICRO_ROS_AGENT_PORT) \
 		  -DROS_DOMAIN_ID=$(ROS_DOMAIN_ID) \
 		  $(USE_UDP_TRANSPORT)
-
-#######################################
-# build the application
-#######################################
-# list of objects
-OBJECTS += $(addprefix $(BUILD_DIR)/, $(C_SOURCES:.c=.o))
-vpath %.c $(sort $(dir $(C_SOURCES)))
-# list of ASM program objects
-OBJECTS += $(addprefix $(BUILD_DIR)/, $(ASM_SOURCES:.s=.o))
-vpath %.s $(sort $(dir $(ASM_SOURCES)))
-OBJECTS += $(addprefix $(BUILD_DIR)/, $(ASMM_SOURCES:.S=.o))
-vpath %.S $(sort $(dir $(ASMM_SOURCES)))
 
 $(BUILD_DIR)/%.o: %.c Makefile | $(BUILD_DIR)
 	$(DIR_GUARD)
