@@ -9,8 +9,6 @@
 #include <unistd.h>
 #include <usart.h>
 
-#include "freertos_utils.hpp"
-
 #define LOG_CYCCNT(func)                                                 \
   do {                                                                   \
     uint32_t timestamp;                                                  \
@@ -36,31 +34,32 @@ extern "C" int _write(int file, char* ptr, int len) {
   return -1;
 }
 
-void enable_dwt_cycle_count() {
+static void enable_dwt_cycle_count() {
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->LAR = 0xC5ACCE55;  // software unlock
   DWT->CYCCNT = 1;
   DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
 }
 
-class Thread : public freertos::AbstractThread {
- public:
-  using freertos::AbstractThread::AbstractThread;
-
- private:
-  void run(void* arg) final {
-    while (true) {
-    puts("measuring");
-      LOG_CYCCNT(vTaskDelay(pdMS_TO_TICKS(10000)));
-      HAL_GPIO_TogglePin(LD1_GPIO_Port, LD1_Pin);
-    }
+// TODO debounce
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+  if (GPIO_Pin == USER_Btn_Pin) {
+    // TODO
   }
-};
+}
+
+void task(void*) {
+  puts("start task");
+  while (true) {
+    puts("looping");
+    vTaskDelay(pdMS_TO_TICKS(1000));
+  }
+}
 
 void application_start() {
   enable_dwt_cycle_count();
-
-  auto t = Thread{"thread1", 128 * 4, osPriorityNormal, nullptr, true};
+  xTaskCreate(task, "task", configMINIMAL_STACK_SIZE, NULL, osPriorityNormal,
+              NULL);
 
   osKernelStart();
 }
