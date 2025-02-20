@@ -45,6 +45,7 @@
 
 /* USER CODE BEGIN Includes */
 /* Section where include file can be added */
+#include <application/application.hpp>
 /* USER CODE END Includes */
 
 /* Ensure definitions are only used by the compiler, and not by the assembler. */
@@ -153,6 +154,11 @@ standard names. */
 
 /* USER CODE BEGIN Defines */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
+void task_switched_in_callback(const char* name);
+#define traceTASK_SWITCHED_IN() \
+  task_switched_in_callback(pxCurrentTCB->pcTaskName)
+void task_switched_out_callback();
+#define traceTASK_SWITCHED_OUT() task_switched_out_callback()
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */
