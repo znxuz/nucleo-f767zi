@@ -157,8 +157,9 @@ standard names. */
 void task_switched_in_callback(const char* name);
 #define traceTASK_SWITCHED_IN() \
   task_switched_in_callback(pxCurrentTCB->pcTaskName)
-void task_switched_out_callback();
-#define traceTASK_SWITCHED_OUT() task_switched_out_callback()
+void task_switched_out_callback(const char* name);
+#define traceTASK_SWITCHED_OUT() \
+  task_switched_out_callback(pxCurrentTCB->pcTaskName)
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */
