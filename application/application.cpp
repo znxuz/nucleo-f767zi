@@ -1,5 +1,3 @@
-#include "application.hpp"
-
 #include <FreeRTOS.h>
 #include <cmsis_os2.h>
 #include <errno.h>
@@ -11,35 +9,43 @@
 #include <usart.h>
 
 #include <string_view>
-#include <utility>
 
-typedef struct {
+struct TaskRecord {
   const char* name;
-  uint32_t timestamp;
-  bool is_start;
-} TaskSwitchRecord_t;
+  uint32_t cycle_count;
+  bool is_begin;
+} __attribute__((packed));
 
-static TaskSwitchRecord_t task_records[10000];
-static size_t task_records_idx;
 static volatile bool task_switch_profiling_enabled;
+static size_t ctx_switch_cnt;
 
-struct timestamp {
-  timestamp(std::string_view name) : name{name} {
+// static TaskRecord task_records[10000];
+// static size_t task_records_idx;
+
+QueueHandle_t task_record_queue;
+
+struct cycle_stamp {
+  cycle_stamp(std::string_view name)
+      : task_record{name.data(), DWT->CYCCNT, true} {
     if (task_switch_profiling_enabled) {
-      taskENTER_CRITICAL();
-      task_records[task_records_idx++] = {name.data(), DWT->CYCCNT, true};
-      taskEXIT_CRITICAL();
+      configASSERT(xQueueSend(task_record_queue, &task_record, 0));
+      // taskENTER_CRITICAL();
+      // task_records[task_records_idx++] = {name.data(), DWT->CYCCNT, true};
+      // taskEXIT_CRITICAL();
     }
   }
-  ~timestamp() {
+  ~cycle_stamp() {
     if (task_switch_profiling_enabled) {
-      taskENTER_CRITICAL();
-      task_records[task_records_idx++] = {name.data(), DWT->CYCCNT, false};
-      taskEXIT_CRITICAL();
+      task_record.cycle_count = DWT->CYCCNT;
+      task_record.is_begin = false;
+      configASSERT(xQueueSend(task_record_queue, &task_record, 0));
+      // taskENTER_CRITICAL();
+      // task_records[task_records_idx++] = {name.data(), DWT->CYCCNT, false};
+      // taskEXIT_CRITICAL();
     }
   }
 
-  std::string_view name;
+  TaskRecord task_record;
 };
 
 extern "C" {
@@ -95,55 +101,74 @@ void button_task(void*) {
 void task_switched_in_callback(const char* name) {
   if (!task_switch_profiling_enabled) return;
 
-  task_records[task_records_idx].is_start = true;
-  task_records[task_records_idx].name = name;
-  task_records[task_records_idx++].timestamp = DWT->CYCCNT;
+  auto record = TaskRecord{name, DWT->CYCCNT, true};
+  configASSERT(xQueueSendFromISR(task_record_queue, &record, NULL));
+  ++ctx_switch_cnt;
+
+  // task_records[task_records_idx].is_begin = true;
+  // task_records[task_records_idx].name = name;
+  // task_records[task_records_idx++].timestamp = DWT->CYCCNT;
 }
 
 void task_switched_out_callback(const char* name) {
   if (!task_switch_profiling_enabled) return;
 
-  task_records[task_records_idx].name = name;
-  task_records[task_records_idx++].timestamp = DWT->CYCCNT;
+  auto record = TaskRecord{name, DWT->CYCCNT, false};
+  configASSERT(xQueueSendFromISR(task_record_queue, &record, NULL));
+  ++ctx_switch_cnt;
+
+  // task_records[task_records_idx].name = name;
+  // task_records[task_records_idx++].timestamp = DWT->CYCCNT;
 }
 
 void task1(void*) {
-  bool print_once = false;
+  // bool print_once = false;
+  TaskRecord task_record;
+
   while (true) {
-    if (!task_switch_profiling_enabled) {
-      if (std::exchange(print_once, true)) continue;
-
-      taskENTER_CRITICAL();
-      auto idx_cp = task_records_idx;
-      taskEXIT_CRITICAL();
-
-      for (size_t i = 0; i < idx_cp; ++i) {
-        const auto& [name, timestamp, is_start] = task_records[i];
-        printf("%s:\t%s\t%09u\n%s", (is_start ? "start" : "end"), name,
-               timestamp, (i + 1 == idx_cp) ? "\n" : "");
-      }
-    } else {
-      print_once = false;
+    while (xQueueReceive(task_record_queue, &task_record, 0) == pdPASS) {
+      const auto& [name, cycle_count, is_begin] = task_record;
+      printf("%s:\t%s\t%09u\n", (is_begin ? "begin" : "end"), name, cycle_count);
+    }
+    if (ctx_switch_cnt) {
+      printf("ctx switch count: %u\n", ctx_switch_cnt);
+      ctx_switch_cnt = 0;
     }
 
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    // if (!task_switch_profiling_enabled) {
+    //   if (std::exchange(print_once, true)) continue;
+    //
+    //   taskENTER_CRITICAL();
+    //   auto idx_cp = task_records_idx;
+    //   taskEXIT_CRITICAL();
+    //
+    //   for (size_t i = 0; i < idx_cp; ++i) {
+    //     const auto& [name, timestamp, is_begin] = task_records[i];
+    //     printf("%s:\t%s\t%09u\n%s", (is_begin ? "begin" : "end"), name,
+    //            timestamp, (i + 1 == idx_cp) ? "\n" : "");
+    //   }
+    // } else {
+    //   print_once = false;
+    // }
+    //
+    vTaskDelay(pdMS_TO_TICKS(100));
   }
-}
 }
 
 void task2(void*) {
   std::string_view task2_name = "t2_fn";
   while (true) {
-    auto t = timestamp{task2_name};
+    auto t = cycle_stamp{task2_name};
 
-    vTaskDelay(pdMS_TO_TICKS(5000));
+    vTaskDelay(pdMS_TO_TICKS(10));
   }
 }
 
 void application_start() {
   enable_dwt_cycle_count();
 
-  printf("sizeof(TaskSwitchRecord_t): %u\n", sizeof(TaskSwitchRecord_t));
+  task_record_queue = xQueueCreate(1000, sizeof(TaskRecord));
+  configASSERT(task_record_queue != NULL);
 
   xTaskCreate(button_task, "button", configMINIMAL_STACK_SIZE, NULL,
               osPriorityNormal, &button_task_handle);
@@ -153,5 +178,7 @@ void application_start() {
               NULL);
 
   puts("kernel start");
+  printf("SystemCoreClock: %u\n", SystemCoreClock);
   osKernelStart();
+}
 }
