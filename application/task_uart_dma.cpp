@@ -11,10 +11,7 @@
 
 TaskHandle_t task_handle;
 
-// TODO std::array<std::atomic, ..> with memory release/acquire for
-// synchronization
-
-static constexpr size_t BUF_SIZE = 2048;  // reduce size
+static constexpr size_t BUF_SIZE = 1024;
 static uint8_t ring_buf[BUF_SIZE];
 
 static volatile uint8_t read_iteration[BUF_SIZE];
@@ -23,12 +20,8 @@ static volatile uint8_t write_iteration;
 static volatile size_t read_idx;
 static volatile size_t write_idx;
 
-// SemaphoreHandle_t xSemaphore = xSemaphoreCreateMutex();
-
 extern "C" {
-// synchronize so that data gets overwritten only when its already read
 int _write(int file, char* ptr, int len) {
-  // xSemaphoreTake(xSemaphore, portMAX_DELAY);
   if (file == STDOUT_FILENO || file == STDERR_FILENO) {
     for (size_t i = 0; i < len; ++i) {
       if (!write_iteration)
@@ -44,19 +37,8 @@ int _write(int file, char* ptr, int len) {
       taskEXIT_CRITICAL();
     }
   }
-  // xSemaphoreGive(xSemaphore);
 
   return len;
-}
-
-void uart_transmit_string(const char* ptr, size_t len) {
-  taskENTER_CRITICAL();
-  for (size_t i = 0; i < len; ++i) {
-    ring_buf[write_idx] = ptr[i];
-    write_idx += 1;
-    write_idx %= BUF_SIZE;
-  }
-  taskEXIT_CRITICAL();
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
