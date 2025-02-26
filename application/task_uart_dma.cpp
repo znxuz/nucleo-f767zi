@@ -21,25 +21,25 @@ static volatile size_t read_idx;
 static volatile size_t write_idx;
 
 extern "C" {
+#ifdef USE_UART_DMA
 int _write(int file, char* ptr, int len) {
-  if (file == STDOUT_FILENO || file == STDERR_FILENO) {
-    for (size_t i = 0; i < len; ++i) {
-      if (!write_iteration)
-        while (write_iteration != read_iteration[write_idx]);
-      else
-        while (write_iteration > read_iteration[write_idx]);
+  for (size_t i = 0; i < len; ++i) {
+    if (!write_iteration)
+      while (write_iteration != read_iteration[write_idx]);
+    else
+      while (write_iteration > read_iteration[write_idx]);
 
-      taskENTER_CRITICAL();
-      ring_buf[write_idx] = ptr[i];
-      write_idx += 1;
-      write_iteration += (write_idx == BUF_SIZE);
-      write_idx %= BUF_SIZE;
-      taskEXIT_CRITICAL();
-    }
+    taskENTER_CRITICAL();
+    ring_buf[write_idx] = ptr[i];
+    write_idx += 1;
+    write_iteration += (write_idx == BUF_SIZE);
+    write_idx %= BUF_SIZE;
+    taskEXIT_CRITICAL();
   }
 
   return len;
 }
+#endif
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
   if (huart->Instance != huart3.Instance) return;
@@ -77,7 +77,6 @@ void task_uart_dma(void*) {
 }
 
 void task_uart_dma_init() {
-  setvbuf(stdout, NULL, _IONBF, 0);
   configASSERT(xTaskCreate(task_uart_dma, "uart_dma",
                            configMINIMAL_STACK_SIZE * 4, NULL, osPriorityNormal,
                            &task_handle) == pdPASS);

@@ -10,23 +10,34 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <string_view>
+#include <tim.h>
 
 extern "C" {
-// int _write(int file, char* ptr, int len) {
-//   HAL_StatusTypeDef hstatus;
-//
-//   if (file == STDOUT_FILENO || file == STDERR_FILENO) {
-//     hstatus = HAL_UART_Transmit(&huart3, (uint8_t*)ptr, len, HAL_MAX_DELAY);
-//
-//     if (hstatus == HAL_OK)
-//       return len;
-//     else
-//       return EIO;
-//   }
-//   errno = EBADF;
-//   return -1;
-// }
+#ifndef USE_UART_DMA
+int _write(int file, char* ptr, int len) {
+  HAL_StatusTypeDef hstatus;
+
+  if (file == STDOUT_FILENO || file == STDERR_FILENO) {
+    hstatus = HAL_UART_Transmit(&huart3, (uint8_t*)ptr, len, HAL_MAX_DELAY);
+
+    if (hstatus == HAL_OK)
+      return len;
+    else
+      return EIO;
+  }
+  errno = EBADF;
+  return -1;
+}
+#endif
+
+volatile unsigned long ulHighFrequencyTimerTicks;
+
+void configureTimerForRunTimeStats(void) {
+  ulHighFrequencyTimerTicks = 0;
+  HAL_TIM_Base_Start_IT(&htim13);
+}
+
+unsigned long getRunTimeCounterValue(void) { return ulHighFrequencyTimerTicks; }
 
 void task_uart_dma_init();
 void task_record_init();
@@ -41,17 +52,22 @@ static void enable_dwt_cycle_count() {
 }
 
 static const char* lorem = "Lorem ipsum dolor sit amet, consectetur elit.";
-SemaphoreHandle_t xSemaphore;
+// static const char* lorem = "Lorem.";
+
+SemaphoreHandle_t printf_semphr;
+SemaphoreHandle_t bench_semphr;
+
+static QueueHandle_t benchmark_queue;
 
 void benchmark_printf(void*) {
   auto start = DWT->CYCCNT;
 
-  for (size_t i = 0; i < 1000; ++i) {
+  for (size_t i = 0; i < 5000; ++i) {
     do {
       // must check the return value and retry like this, because it could fail
-      if (xSemaphoreTake(xSemaphore, portMAX_DELAY) == pdTRUE) {
+      if (xSemaphoreTake(printf_semphr, portMAX_DELAY) == pdTRUE) {
         printf("%s\n", lorem);
-        xSemaphoreGive(xSemaphore);
+        xSemaphoreGive(printf_semphr);
         break;
       }
     } while (true);
@@ -59,35 +75,56 @@ void benchmark_printf(void*) {
 
   auto end = DWT->CYCCNT;
   uint32_t time_us =
-      static_cast<double>(end - start) / SystemCoreClock * 1000 * 1000;
+      static_cast<double>(end - start) / SystemCoreClock * 1000;
 
-  vTaskDelay(1000);
-  printf("time us elapsed: %u\n", time_us);
-  vTaskDelete(NULL);
+  xQueueSend(benchmark_queue, &time_us, 0);
+  xSemaphoreGive(bench_semphr);
+
+  while (true);
 }
 
-void task2(void*) {
-  std::string_view task2_name = "t2_fn";
-  while (true) {
-    printf("%s\n", task2_name.data());
-    vTaskDelay(pdMS_TO_TICKS(1000));
+void print_benchmark(void*) {
+  for (size_t i = 0; i < 3; ++i)
+    xSemaphoreTake(bench_semphr, portMAX_DELAY);
+
+  size_t time_ms;
+  for (size_t i = 0; i < 3; ++i) {
+    xQueueReceive(benchmark_queue, &time_ms, 0);
+    printf("time in ms: %u\n", time_ms);
   }
+
+  static constexpr uint8_t configNUM_TASKS = 7;
+  static char stat_buf[40 * configMAX_TASK_NAME_LEN * configNUM_TASKS];
+
+  vTaskGetRunTimeStats(stat_buf);
+  puts("==========================================");
+  printf("Task\t\tTime\t\t%%\n");
+  printf("%s\n", stat_buf);
+
+  while (true);
 }
 
 void application_start() {
+  setvbuf(stdout, NULL, _IONBF, 0);
+
   enable_dwt_cycle_count();
 
+  configASSERT(benchmark_queue = xQueueCreate(3, sizeof(uint32_t)));
+  configASSERT(bench_semphr = xSemaphoreCreateCounting(3, 0));
+  configASSERT((printf_semphr = xSemaphoreCreateMutex()));
+
+#ifdef USE_UART_DMA
   task_uart_dma_init();
-  configASSERT((xSemaphore = xSemaphoreCreateMutex()));
+#endif
+
   xTaskCreate(benchmark_printf, "bench1", configMINIMAL_STACK_SIZE, NULL,
               osPriorityNormal, NULL);
   xTaskCreate(benchmark_printf, "bench2", configMINIMAL_STACK_SIZE, NULL,
               osPriorityNormal, NULL);
   xTaskCreate(benchmark_printf, "bench3", configMINIMAL_STACK_SIZE, NULL,
               osPriorityNormal, NULL);
-  // xTaskCreate(task2, "task2", configMINIMAL_STACK_SIZE, NULL,
-  // osPriorityNormal,
-  //             NULL);
+  xTaskCreate(print_benchmark, "print_bench", configMINIMAL_STACK_SIZE, NULL,
+              osPriorityNormal, NULL);
 
   // printf("kernel start\n");
   // printf("SystemCoreClock: %u\n", SystemCoreClock);
