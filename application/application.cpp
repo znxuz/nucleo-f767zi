@@ -4,13 +4,13 @@
 #include <semphr.h>
 #include <stm32f767xx.h>
 #include <task.h>
+#include <tim.h>
 #include <unistd.h>
 #include <usart.h>
 
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
-#include <tim.h>
 
 extern "C" {
 #ifndef USE_UART_DMA
@@ -59,7 +59,9 @@ SemaphoreHandle_t bench_semphr;
 
 static QueueHandle_t benchmark_queue;
 
-void benchmark_printf(void*) {
+constexpr size_t BENCHMARK_N = 3;
+
+void run_benchmark(void*) {
   auto start = DWT->CYCCNT;
 
   for (size_t i = 0; i < 5000; ++i) {
@@ -74,8 +76,7 @@ void benchmark_printf(void*) {
   }
 
   auto end = DWT->CYCCNT;
-  uint32_t time_us =
-      static_cast<double>(end - start) / SystemCoreClock * 1000;
+  uint32_t time_us = static_cast<double>(end - start) / SystemCoreClock * 1000;
 
   xQueueSend(benchmark_queue, &time_us, 0);
   xSemaphoreGive(bench_semphr);
@@ -84,12 +85,12 @@ void benchmark_printf(void*) {
 }
 
 void print_benchmark(void*) {
-  for (size_t i = 0; i < 3; ++i)
+  for (size_t i = 0; i < BENCHMARK_N; ++i)
     xSemaphoreTake(bench_semphr, portMAX_DELAY);
 
   size_t total = 0;
   size_t time_ms;
-  for (size_t i = 0; i < 3; ++i) {
+  for (size_t i = 0; i < BENCHMARK_N; ++i) {
     xQueueReceive(benchmark_queue, &time_ms, 0);
     total += time_ms;
     printf("time in ms: %u\n", time_ms);
@@ -113,20 +114,18 @@ void application_start() {
 
   enable_dwt_cycle_count();
 
-  configASSERT(benchmark_queue = xQueueCreate(3, sizeof(uint32_t)));
-  configASSERT(bench_semphr = xSemaphoreCreateCounting(3, 0));
+  configASSERT(benchmark_queue = xQueueCreate(BENCHMARK_N, sizeof(uint32_t)));
+  configASSERT(bench_semphr = xSemaphoreCreateCounting(BENCHMARK_N, 0));
   configASSERT((printf_semphr = xSemaphoreCreateMutex()));
 
 #ifdef USE_UART_DMA
   task_uart_dma_init();
 #endif
 
-  xTaskCreate(benchmark_printf, "bench1", configMINIMAL_STACK_SIZE, NULL,
-              osPriorityNormal, NULL);
-  xTaskCreate(benchmark_printf, "bench2", configMINIMAL_STACK_SIZE, NULL,
-              osPriorityNormal, NULL);
-  xTaskCreate(benchmark_printf, "bench3", configMINIMAL_STACK_SIZE, NULL,
-              osPriorityNormal, NULL);
+  for (size_t i = 0; i < BENCHMARK_N; ++i) {
+    xTaskCreate(run_benchmark, "benchmark", configMINIMAL_STACK_SIZE, NULL,
+                osPriorityNormal, NULL);
+  }
   xTaskCreate(print_benchmark, "print_bench", configMINIMAL_STACK_SIZE, NULL,
               osPriorityNormal, NULL);
 

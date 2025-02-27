@@ -23,15 +23,12 @@ static volatile size_t write_idx;
 extern "C" {
 #ifdef USE_UART_DMA
 
-// TODO maybe make printf thread-safe instead of manually synchronize
 int _write(int file, char* ptr, int len) {
   for (size_t i = 0; i < len; ++i) {
     if (!write_iteration)
-      while (write_iteration != read_iteration[write_idx])
-        vTaskDelay(1);
+      while (write_iteration != read_iteration[write_idx]) vTaskDelay(1);
     else
-      while (write_iteration > read_iteration[write_idx])
-        vTaskDelay(1);
+      while (write_iteration > read_iteration[write_idx]) vTaskDelay(1);
 
     taskENTER_CRITICAL();
     ring_buf[write_idx] = ptr[i];
@@ -46,7 +43,7 @@ int _write(int file, char* ptr, int len) {
 #endif
 
 void uart_write(char* ptr, int len) {
-// TODO instead of calling printf write an own uart transmit based on _write
+  // TODO instead of calling printf write an own uart transmit based on _write
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
