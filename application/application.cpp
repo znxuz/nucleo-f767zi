@@ -87,11 +87,15 @@ void print_benchmark(void*) {
   for (size_t i = 0; i < 3; ++i)
     xSemaphoreTake(bench_semphr, portMAX_DELAY);
 
+  size_t total = 0;
   size_t time_ms;
   for (size_t i = 0; i < 3; ++i) {
     xQueueReceive(benchmark_queue, &time_ms, 0);
+    total += time_ms;
     printf("time in ms: %u\n", time_ms);
   }
+
+  printf("total: %u\n", total);
 
   static constexpr uint8_t configNUM_TASKS = 7;
   static char stat_buf[40 * configMAX_TASK_NAME_LEN * configNUM_TASKS];
