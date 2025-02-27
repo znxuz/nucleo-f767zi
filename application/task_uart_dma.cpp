@@ -44,6 +44,19 @@ int _write(int file, char* ptr, int len) {
 
 void uart_write(char* ptr, int len) {
   // TODO instead of calling printf write an own uart transmit based on _write
+  for (size_t i = 0; i < len; ++i) {
+    if (!write_iteration)
+      while (write_iteration != read_iteration[write_idx]) vTaskDelay(1);
+    else
+      while (write_iteration > read_iteration[write_idx]) vTaskDelay(1);
+
+    taskENTER_CRITICAL();
+    ring_buf[write_idx] = ptr[i];
+    write_idx += 1;
+    write_iteration += (write_idx == BUF_SIZE);
+    write_idx %= BUF_SIZE;
+    taskEXIT_CRITICAL();
+  }
 }
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {

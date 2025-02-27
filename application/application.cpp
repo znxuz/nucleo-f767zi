@@ -42,7 +42,7 @@ unsigned long getRunTimeCounterValue(void) { return ulHighFrequencyTimerTicks; }
 void task_uart_dma_init();
 void task_record_init();
 void task_button_init();
-void uart_transmit_string(const char* ptr, size_t len);
+void uart_write(const char* ptr, size_t len);
 
 static void enable_dwt_cycle_count() {
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
