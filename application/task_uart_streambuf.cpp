@@ -21,8 +21,7 @@ static volatile size_t read_idx;
 static volatile size_t write_idx;
 
 extern "C" {
-#ifdef USE_UART_DMA
-
+#ifdef USE_UART_STREAMBUF
 int _write(int file, char* ptr, int len) {
   for (size_t i = 0; i < len; ++i) {
     if (!write_iteration)
@@ -43,7 +42,6 @@ int _write(int file, char* ptr, int len) {
 #endif
 
 void uart_write(char* ptr, int len) {
-  // TODO instead of calling printf write an own uart transmit based on _write
   for (size_t i = 0; i < len; ++i) {
     if (!write_iteration)
       while (write_iteration != read_iteration[write_idx]) vTaskDelay(1);
@@ -67,7 +65,7 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
   portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
-void task_uart_dma(void*) {
+void task_uart_streambuf(void*) {
   while (true) {
     auto end = write_idx;  // atomic by nature on ARM
 
@@ -94,8 +92,8 @@ void task_uart_dma(void*) {
   }
 }
 
-void task_uart_dma_init() {
-  configASSERT(xTaskCreate(task_uart_dma, "uart_dma",
+void task_uart_streambuf_init() {
+  configASSERT(xTaskCreate(task_uart_streambuf, "uart_streambuf",
                            configMINIMAL_STACK_SIZE * 4, NULL, osPriorityNormal,
                            &task_handle) == pdPASS);
 }

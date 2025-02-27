@@ -132,7 +132,7 @@ AS_DEFS =
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32F767xx \
--DUSE_UART_DMA \
+-DUSE_UART_STREAMBUF \
 -DMICRO_ROS_AGENT_IP=$(MICRO_ROS_AGENT_IP) \
 -DMICRO_ROS_AGENT_PORT=$(MICRO_ROS_AGENT_PORT) \
 -DROS_DOMAIN_ID=$(ROS_DOMAIN_ID)
@@ -225,8 +225,9 @@ CPPFLAGS = $(CFLAGS) \
 		   $(CPP_INCLUDES)
 CPP_SOURCES += \
 			   application/application.cpp \
-			   application/task_uart_dma.cpp \
-			   application/task_record.cpp
+			   application/task_uart_streambuf.cpp \
+			   application/task_record.cpp \
+			   application/benchmark_streambuf.cpp
 OBJECTS += $(addprefix $(BUILD_DIR)/, $(CPP_SOURCES:.cpp=.o))
 
 LDFLAGS += \
