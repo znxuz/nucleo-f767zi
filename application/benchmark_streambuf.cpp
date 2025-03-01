@@ -11,9 +11,9 @@
 #include <cstdio>
 #include <cstring>
 
-extern "C" {
-void task_uart_streambuf_init();
+#include "task_uart_streambuf.hpp"
 
+extern "C" {
 #ifndef USE_UART_STREAMBUF
 int _write(int file, char* ptr, int len) {
   HAL_StatusTypeDef hstatus;
@@ -39,16 +39,16 @@ SemaphoreHandle_t bench_semphr;
 
 static QueueHandle_t benchmark_queue;
 
-constexpr size_t BENCHMARK_N = 3;
+constexpr size_t BENCHMARK_N = 1;
 
 void run_benchmark(void*) {
   auto start = DWT->CYCCNT;
 
-  for (size_t i = 0; i < 5000; ++i) {
+  for (size_t i = 0; i < 10000; ++i) {
     do {
       // must check the return value and retry like this, because it could fail
       if (xSemaphoreTake(printf_semphr, portMAX_DELAY) == pdTRUE) {
-        printf("%s\n", lorem);
+        printf("%s", lorem);
         xSemaphoreGive(printf_semphr);
         break;
       }
@@ -73,7 +73,7 @@ void print_benchmark(void*) {
   for (size_t i = 0; i < BENCHMARK_N; ++i) {
     xQueueReceive(benchmark_queue, &time_ms, 0);
     total += time_ms;
-    printf("time in ms: %u\n", time_ms);
+    printf("\ntime in ms: %u\n", time_ms);
   }
 
   printf("total: %u\n", total);
@@ -99,10 +99,12 @@ void benchmark_streambuf() {
 #endif
 
   for (size_t i = 0; i < BENCHMARK_N; ++i) {
-    xTaskCreate(run_benchmark, "benchmark", configMINIMAL_STACK_SIZE, NULL,
-                osPriorityNormal, NULL);
+    configASSERT(xTaskCreate(run_benchmark, "benchmark",
+                             configMINIMAL_STACK_SIZE, NULL, osPriorityNormal,
+                             NULL) == pdPASS);
   }
-  xTaskCreate(print_benchmark, "print_bench", configMINIMAL_STACK_SIZE, NULL,
-              osPriorityNormal, NULL);
+  configASSERT(xTaskCreate(print_benchmark, "print_bench",
+                           configMINIMAL_STACK_SIZE, NULL, osPriorityNormal,
+                           NULL) == pdPASS);
 }
 }

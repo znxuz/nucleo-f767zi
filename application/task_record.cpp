@@ -109,8 +109,8 @@ void task1(void*) {
   while (true) {
     while (xQueueReceive(task_record_queue, &task_record, 0) == pdPASS) {
       const auto& [name, cycle_count, is_begin] = task_record;
-      printf("%s:\t%s\t%09u\n", (is_begin ? "begin" : "end"), name,
-             cycle_count);
+      printf("%s:\t%s\t%09lu\n", (is_begin ? "begin" : "end"), name,
+             static_cast<unsigned long>(cycle_count));
     }
     if (ctx_switch_cnt) {
       printf("ctx switch count: %u\n", ctx_switch_cnt);

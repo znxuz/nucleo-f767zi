@@ -4,9 +4,7 @@
 #include <cstdio>
 
 extern "C" {
-void task_record_init();
 void task_button_init();
-
 void benchmark_streambuf();
 
 volatile unsigned long ulHighFrequencyTimerTicks;
