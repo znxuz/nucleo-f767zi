@@ -8,6 +8,7 @@
 #include <usart.h>
 
 #include <cerrno>
+#include <cstdarg>
 #include <cstdio>
 #include <cstring>
 
@@ -39,21 +40,24 @@ SemaphoreHandle_t bench_semphr;
 
 static QueueHandle_t benchmark_queue;
 
-constexpr size_t BENCHMARK_N = 1;
+constexpr size_t BENCHMARK_N = 5;
+
+int mtxprintf(const char* format, ...) {
+  xSemaphoreTake(printf_semphr, portMAX_DELAY);
+  va_list args;
+  va_start(args, format);
+  int result = std::vprintf(format, args);
+  va_end(args);
+  xSemaphoreGive(printf_semphr);
+
+  return result;
+}
 
 void run_benchmark(void*) {
   auto start = DWT->CYCCNT;
 
-  for (size_t i = 0; i < 10000; ++i) {
-    do {
-      // must check the return value and retry like this, because it could fail
-      if (xSemaphoreTake(printf_semphr, portMAX_DELAY) == pdTRUE) {
-        printf("%s", lorem);
-        xSemaphoreGive(printf_semphr);
-        break;
-      }
-    } while (true);
-  }
+  for (size_t i = 0; i < 5000; ++i)
+    mtxprintf("%s\n", lorem);
 
   auto end = DWT->CYCCNT;
   uint32_t time_us = static_cast<double>(end - start) / SystemCoreClock * 1000;
@@ -61,7 +65,9 @@ void run_benchmark(void*) {
   xQueueSend(benchmark_queue, &time_us, 0);
   xSemaphoreGive(bench_semphr);
 
-  while (true);
+  while (true) {
+    vTaskDelay(1000);
+  }
 }
 
 void print_benchmark(void*) {
@@ -70,23 +76,26 @@ void print_benchmark(void*) {
 
   size_t total = 0;
   size_t time_ms;
+  puts("==========================================");
   for (size_t i = 0; i < BENCHMARK_N; ++i) {
     xQueueReceive(benchmark_queue, &time_ms, 0);
     total += time_ms;
-    printf("\ntime in ms: %u\n", time_ms);
+    mtxprintf("time in ms: %u\n", time_ms);
   }
 
-  printf("total: %u\n", total);
+  mtxprintf("total: %u\n", total);
 
-  static constexpr uint8_t configNUM_TASKS = 7;
+  static constexpr uint8_t configNUM_TASKS = BENCHMARK_N + 5;
   static char stat_buf[40 * configMAX_TASK_NAME_LEN * configNUM_TASKS];
 
   vTaskGetRunTimeStats(stat_buf);
   puts("==========================================");
-  printf("Task\t\tTime\t\t%%\n");
-  printf("%s\n", stat_buf);
+  mtxprintf("Task\t\tTime\t\t%%\n");
+  mtxprintf("%s\n", stat_buf);
 
-  while (true);
+  while (true) {
+    vTaskDelay(1000);
+  }
 }
 
 void benchmark_streambuf() {
