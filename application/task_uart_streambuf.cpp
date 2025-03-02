@@ -7,7 +7,8 @@
 
 #include <cerrno>
 #include <cstdarg>
-#include <cstdio>
+
+#include <printf.h>
 
 static SemaphoreHandle_t task_semphr;
 static TaskHandle_t task_hdl;
@@ -38,10 +39,7 @@ void uart_write(const char* ptr, size_t len) {
 }
 
 #ifdef USE_UART_STREAMBUF
-int _write(int file, char* ptr, int len) {
-  uart_write(ptr, len);
-  return len;
-}
+void _putchar(char c) { uart_write((const char*)&c, 1); }
 #endif
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {

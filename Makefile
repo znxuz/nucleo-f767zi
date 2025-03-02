@@ -77,7 +77,8 @@ Core/Src/gpio.c \
 Core/Src/eth.c \
 Core/Src/usart.c \
 Core/Src/dma.c \
-Core/Src/tim.c
+Core/Src/tim.c \
+third_party/printf/printf.c
 
 # ASM sources
 ASM_SOURCES =  \
@@ -150,12 +151,21 @@ C_INCLUDES =  \
 -IDrivers/CMSIS/Include \
 -IMiddlewares/Third_Party/FreeRTOS/Source/include \
 -IMiddlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 \
--IMiddlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM7/r0p1
+-IMiddlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM7/r0p1 \
+-Ithird_party/printf
 
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
 
-CFLAGS += $(MCU) $(C_DEFS) $(C_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
+CFLAGS +=\
+$(MCU) \
+$(C_DEFS) \
+$(C_INCLUDES) \
+$(OPT) \
+-Wall \
+-fdata-sections \
+-ffunction-sections \
+-fno-builtin-printf
 
 ifeq ($(DEBUG), 1)
 CFLAGS += -g -gdwarf-2
