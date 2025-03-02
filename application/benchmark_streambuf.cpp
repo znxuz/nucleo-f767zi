@@ -54,15 +54,14 @@ int mtxprintf(const char* format, ...) {
 }
 
 void run_benchmark(void*) {
-  auto start = DWT->CYCCNT;
+  auto time = DWT->CYCCNT;
 
   for (size_t i = 0; i < 5000; ++i)
     mtxprintf("%s\n", lorem);
 
-  auto end = DWT->CYCCNT;
-  uint32_t time_us = static_cast<double>(end - start) / SystemCoreClock * 1000;
-
-  xQueueSend(benchmark_queue, &time_us, 0);
+  time =
+      static_cast<double>(DWT->CYCCNT - time) / SystemCoreClock * 1000;
+  xQueueSend(benchmark_queue, &time, 0);
   xSemaphoreGive(bench_semphr);
 
   while (true) {
@@ -71,19 +70,20 @@ void run_benchmark(void*) {
 }
 
 void print_benchmark(void*) {
+  auto time = DWT->CYCCNT;
   for (size_t i = 0; i < BENCHMARK_N; ++i)
     xSemaphoreTake(bench_semphr, portMAX_DELAY);
 
-  size_t total = 0;
-  size_t time_ms;
+  time =
+      static_cast<double>(DWT->CYCCNT - time) / SystemCoreClock * 1000;
   puts("==========================================");
   for (size_t i = 0; i < BENCHMARK_N; ++i) {
-    xQueueReceive(benchmark_queue, &time_ms, 0);
-    total += time_ms;
-    mtxprintf("time in ms: %u\n", time_ms);
+    size_t t;
+    xQueueReceive(benchmark_queue, &t, 0);
+    mtxprintf("time in us: %u\n", t);
   }
 
-  mtxprintf("total: %u\n", total);
+  mtxprintf("time elapsed: %u\n", time);
 
   static constexpr uint8_t configNUM_TASKS = BENCHMARK_N + 5;
   static char stat_buf[40 * configMAX_TASK_NAME_LEN * configNUM_TASKS];
