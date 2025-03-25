@@ -133,7 +133,6 @@ AS_DEFS =
 C_DEFS =  \
 -DUSE_HAL_DRIVER \
 -DSTM32F767xx \
--DUSE_UART_STREAMBUF \
 -DMICRO_ROS_AGENT_IP=$(MICRO_ROS_AGENT_IP) \
 -DMICRO_ROS_AGENT_PORT=$(MICRO_ROS_AGENT_PORT) \
 -DROS_DOMAIN_ID=$(ROS_DOMAIN_ID)
@@ -152,7 +151,8 @@ C_INCLUDES =  \
 -IMiddlewares/Third_Party/FreeRTOS/Source/include \
 -IMiddlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2 \
 -IMiddlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM7/r0p1 \
--Ithird_party/printf
+-Ithird_party/printf \
+-Ithird_party/freertos-threadsafe-sink
 
 # compile gcc flags
 ASFLAGS = $(MCU) $(AS_DEFS) $(AS_INCLUDES) $(OPT) -Wall -fdata-sections -ffunction-sections
@@ -184,7 +184,7 @@ LDSCRIPT = stm32f767zitx_flash.ld
 # libraries
 LIBS = -lc -lm -lnosys 
 LIBDIR = 
-LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections -u_printf_float
+LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
 
 # default action: build all
 all: $(BUILD_DIR)/$(TARGET).elf $(BUILD_DIR)/$(TARGET).hex $(BUILD_DIR)/$(TARGET).bin
@@ -229,15 +229,13 @@ C_INCLUDES += -I$(CURDIR)
 
 # CPP_INCLUDES += 
 CPPFLAGS = $(CFLAGS) \
-		   -std=gnu++20 \
+		   -std=gnu++23 \
 		   -fno-rtti \
 		   -fno-use-cxa-atexit \
 		   $(CPP_INCLUDES)
 CPP_SOURCES += \
 			   application/application.cpp \
-			   application/task_uart_streambuf.cpp \
-			   application/task_record.cpp \
-			   application/benchmark_streambuf.cpp
+			   application/benchmark_tsink.cpp
 OBJECTS += $(addprefix $(BUILD_DIR)/, $(CPP_SOURCES:.cpp=.o))
 
 LDFLAGS += \
