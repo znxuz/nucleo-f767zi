@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <usart.h>
 
+#include <atomic>
 #include <cerrno>
 #include <cstdarg>
 #include <cstring>
@@ -17,16 +18,16 @@ using namespace freertos;
 
 extern "C" {
 
-static const char* lorem = "Lorem ipsum dolor sit amet, consectetur elit.\n";
+static const char* lorem = "Lorem ipsum dolor sit amet, consectetur elit.";
 
 SemaphoreHandle_t bench_semphr;
 
 static QueueHandle_t benchmark_queue;
 
-constexpr size_t BENCHMARK_N = 5;
+constexpr size_t BENCHMARK_N = 4;
 
 size_t prints(const char* format, ...) {
-  static char buf[100];
+  char buf[100]{};
 
   va_list args;
   va_start(args, format);
@@ -42,12 +43,12 @@ size_t prints(const char* format, ...) {
 // }
 
 void run_benchmark(void*) {
+  static std::atomic<size_t> atcnt = 1;
   auto time = DWT->CYCCNT;
 
   constexpr size_t iteration = 5000;
-  for (size_t i = 0; i < iteration; ++i) {
-    tsink_write_str(lorem);
-  }
+  for (size_t i = 0; i < iteration; ++i)
+    prints("%u. repeat: %s\n", atcnt.fetch_add(1), lorem);
 
   time = static_cast<double>(DWT->CYCCNT - time) / SystemCoreClock * 1000;
   xQueueSend(benchmark_queue, &time, 0);
