@@ -32,20 +32,22 @@ size_t prints(const char* format, ...) {
   va_start(args, format);
   auto size = vsnprintf(buf, sizeof(buf), format, args);
   va_end(args);
-  tsink::write(buf, size);
+  tsink_write(buf, size);
 
   return size;
 }
 
 // void _putchar(char c) {
-//   tsink::write(&c, 1);
+//   tsink_write(&c, 1);
 // }
 
 void run_benchmark(void*) {
   auto time = DWT->CYCCNT;
 
   constexpr size_t iteration = 5000;
-  for (size_t i = 0; i < iteration; ++i) { tsink::write_str(lorem); }
+  for (size_t i = 0; i < iteration; ++i) {
+    tsink_write_str(lorem);
+  }
 
   time = static_cast<double>(DWT->CYCCNT - time) / SystemCoreClock * 1000;
   xQueueSend(benchmark_queue, &time, 0);
@@ -62,7 +64,7 @@ void print_benchmark(void*) {
     xSemaphoreTake(bench_semphr, portMAX_DELAY);
 
   time = static_cast<double>(DWT->CYCCNT - time) / SystemCoreClock * 1000;
-  tsink::write_str("==========================================\n");
+  tsink_write_str("==========================================\n");
   for (size_t i = 0; i < BENCHMARK_N; ++i) {
     size_t t;
     xQueueReceive(benchmark_queue, &t, 0);
@@ -75,9 +77,9 @@ void print_benchmark(void*) {
   static char stat_buf[50 * configNUM_TASKS];
 
   vTaskGetRunTimeStats(stat_buf);
-  tsink::write_str("==========================================\n");
+  tsink_write_str("==========================================\n");
   prints("Task\t\tTime\t\t%%\n");
-  tsink::write_str(stat_buf);
+  tsink_write_str(stat_buf);
 
   while (true) {
     vTaskDelay(1000);

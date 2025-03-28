@@ -49,7 +49,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
   if (huart->Instance != huart3.Instance) return;
-  tsink::consume_complete<freertos::tsink::CALLSITE::ISR>();
+  tsink_consume_complete<TSINK_CALL_FROM::ISR>();
 }
 
 void application_start() {
@@ -74,11 +74,11 @@ void application_start() {
   [[maybe_unused]] auto tsink_consume = [](const uint8_t* buf,
                                            size_t size) static {
     HAL_UART_Transmit(&huart3, buf, size, HAL_MAX_DELAY);
-    tsink::consume_complete<tsink::CALLSITE::NON_ISR>();
+    tsink_consume_complete<TSINK_CALL_FROM::NON_ISR>();
   };
 
-  tsink::init(tsink_consume_dma, osPriorityAboveNormal);
-  // tsink::init(tsink_consume, osPriorityAboveNormal);
+  tsink_init(tsink_consume_dma, osPriorityAboveNormal);
+  // tsink_init(tsink_consume, osPriorityAboveNormal);
   benchmark_tsink();
 
   osKernelStart();
