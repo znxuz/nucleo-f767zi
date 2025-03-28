@@ -65,11 +65,11 @@ void print_benchmark(void*) {
     xSemaphoreTake(bench_semphr, portMAX_DELAY);
 
   time = static_cast<double>(DWT->CYCCNT - time) / SystemCoreClock * 1000;
-  tsink_write_str("==========================================\n");
+  tsink_write_str("===================================\n");
   for (size_t i = 0; i < BENCHMARK_N; ++i) {
     size_t t;
     xQueueReceive(benchmark_queue, &t, 0);
-    prints("time in us: %u\n", t);
+    prints("time in ms: %u\n", t);
   }
 
   prints("time elapsed: %u\n", time);
@@ -78,7 +78,7 @@ void print_benchmark(void*) {
   static char stat_buf[50 * configNUM_TASKS];
 
   vTaskGetRunTimeStats(stat_buf);
-  tsink_write_str("==========================================\n");
+  tsink_write_str("===================================\n");
   prints("Task\t\tTime\t\t%%\n");
   tsink_write_str(stat_buf);
 
