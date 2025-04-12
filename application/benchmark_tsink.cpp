@@ -1,6 +1,6 @@
 #include <FreeRTOS.h>
 #include <cmsis_os2.h>
-#include <printf.h>
+#include <printf/printf.h>
 #include <queue.h>
 #include <semphr.h>
 #include <stm32f767xx.h>
@@ -12,7 +12,7 @@
 #include <cerrno>
 #include <cstdarg>
 #include <cstring>
-#include <threadsafe_sink.hpp>
+#include <freertos-threadsafe-sink/threadsafe_sink.hpp>
 
 using namespace freertos;
 
@@ -26,22 +26,30 @@ static QueueHandle_t benchmark_queue;
 
 constexpr size_t BENCHMARK_N = 10;
 
-void run_benchmark(void*) {
-  auto time = DWT->CYCCNT;
+void va_tsink_write(size_t ticket, const char* format, ...) {
   char buf[100];
+  va_list args;
+  va_start(args, format);
+  auto size = vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  // tsink_write_ordered(buf, size, ticket);
+  tsink_write_blocking(buf, size);
+}
+
+void run_benchmark(void*) {
+  auto cycle = DWT->CYCCNT;
   static std::atomic<size_t> ticket_machine;
 
-  constexpr size_t iteration = 2000;
+  constexpr size_t iteration = 1000;
+  float f = 1.25;
   for (size_t i = 0; i < iteration; ++i) {
-    auto ticket = ticket_machine.fetch_add(1);
-    auto size = snprintf(buf, sizeof(buf), "%u. ticket: %s\n", ticket, lorem);
-
-    tsink_write_ordered(buf, size, ticket);
-    // tsink_write_blocking(buf, size);
+    auto ticket = ticket_machine.fetch_add(1, std::memory_order_acquire);
+    va_tsink_write(ticket, "%u. ticket with f: %f: %s\n", ticket, f + i, lorem);
   }
 
-  time = static_cast<double>(DWT->CYCCNT - time) / SystemCoreClock * 1000;
-  xQueueSend(benchmark_queue, &time, 0);
+  cycle = DWT->CYCCNT - cycle;
+  xQueueSend(benchmark_queue, &cycle, portMAX_DELAY);
   xSemaphoreGive(bench_semphr);
 
   while (true) {
@@ -53,17 +61,17 @@ void print_benchmark(void*) {
   static constexpr uint8_t configNUM_TASKS = BENCHMARK_N + 5;
   static char buf[50 * configNUM_TASKS];
 
-  auto time = DWT->CYCCNT;
   for (size_t i = 0; i < BENCHMARK_N; ++i)
     xSemaphoreTake(bench_semphr, portMAX_DELAY);
 
-  time = static_cast<double>(DWT->CYCCNT - time) / SystemCoreClock * 1000;
   tsink_write_str("===================================\n");
   for (size_t i = 0; i < BENCHMARK_N; ++i) {
-    size_t t;
-    xQueueReceive(benchmark_queue, &t, 0);
-    tsink_write_blocking(buf,
-                         snprintf(buf, sizeof(buf), "time in ms: %u\n", t));
+    size_t time;
+    xQueueReceive(benchmark_queue, &time, portMAX_DELAY);
+    tsink_write_blocking(
+        buf, snprintf(buf, sizeof(buf), "time in ms: %u\n",
+                      static_cast<uint32_t>(static_cast<float>(time) /
+                                            SystemCoreClock * 1000)));
   }
 
   vTaskGetRunTimeStats(buf);

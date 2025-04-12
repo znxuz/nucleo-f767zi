@@ -1,14 +1,14 @@
 #include <FreeRTOS.h>
 #include <cmsis_os2.h>
 #include <main.h>
-#include <printf.h>
+#include <printf/printf.h>
 #include <task.h>
 #include <tim.h>
+#include <ulog/src/ulog.h>
+#include <usart.h>
 
-#include <threadsafe_sink.hpp>
+#include <freertos-threadsafe-sink/threadsafe_sink.hpp>
 #include <utility>
-
-#include "usart.h"
 
 using namespace freertos;
 
@@ -52,7 +52,19 @@ void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
   tsink_consume_complete<TSINK_CALL_FROM::ISR>();
 }
 
+int ulog_formatter(char* buffer, size_t count, const char* format, va_list va) {
+  return vsnprintf(buffer, count, format, va);
+}
+
+void my_console_logger(ulog_level_t severity, char* msg) {
+  printf("[%s]: %s\n", ulog_level_name(severity), msg);
+}
+
+void _putchar(char c) { tsink_write_blocking(&c, 1); }
+
 void application_start() {
+  ULOG_INIT();
+  ULOG_SUBSCRIBE(my_console_logger, ULOG_DEBUG_LEVEL);
   enable_dwt_cycle_count();
 
   [[maybe_unused]] auto tsink_consume_dma = [](const uint8_t* buf,
@@ -79,7 +91,9 @@ void application_start() {
 
   tsink_init(tsink_consume_dma, osPriorityAboveNormal);
   // tsink_init(tsink_consume, osPriorityAboveNormal);
-  benchmark_tsink();
+  // benchmark_tsink();
+
+  ULOG_INFO("float: %f", 0.2f);
 
   osKernelStart();
 }
