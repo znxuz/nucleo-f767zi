@@ -24,31 +24,21 @@ SemaphoreHandle_t bench_semphr;
 
 static QueueHandle_t benchmark_queue;
 
-constexpr size_t BENCHMARK_N = 4;
-
-size_t prints(const char* format, ...) {
-  char buf[100]{};
-
-  va_list args;
-  va_start(args, format);
-  auto size = vsnprintf(buf, sizeof(buf), format, args);
-  va_end(args);
-  tsink_write(buf, size);
-
-  return size;
-}
-
-// void _putchar(char c) {
-//   tsink_write(&c, 1);
-// }
+constexpr size_t BENCHMARK_N = 10;
 
 void run_benchmark(void*) {
-  static std::atomic<size_t> atcnt = 1;
   auto time = DWT->CYCCNT;
+  char buf[100];
+  static std::atomic<size_t> ticket_machine;
 
-  constexpr size_t iteration = 5000;
-  for (size_t i = 0; i < iteration; ++i)
-    prints("%u. repeat: %s\n", atcnt.fetch_add(1), lorem);
+  constexpr size_t iteration = 2000;
+  for (size_t i = 0; i < iteration; ++i) {
+    auto ticket = ticket_machine.fetch_add(1);
+    auto size = snprintf(buf, sizeof(buf), "%u. ticket: %s\n", ticket, lorem);
+
+    tsink_write_ordered(buf, size, ticket);
+    // tsink_write_blocking(buf, size);
+  }
 
   time = static_cast<double>(DWT->CYCCNT - time) / SystemCoreClock * 1000;
   xQueueSend(benchmark_queue, &time, 0);
@@ -60,6 +50,9 @@ void run_benchmark(void*) {
 }
 
 void print_benchmark(void*) {
+  static constexpr uint8_t configNUM_TASKS = BENCHMARK_N + 5;
+  static char buf[50 * configNUM_TASKS];
+
   auto time = DWT->CYCCNT;
   for (size_t i = 0; i < BENCHMARK_N; ++i)
     xSemaphoreTake(bench_semphr, portMAX_DELAY);
@@ -69,18 +62,14 @@ void print_benchmark(void*) {
   for (size_t i = 0; i < BENCHMARK_N; ++i) {
     size_t t;
     xQueueReceive(benchmark_queue, &t, 0);
-    prints("time in ms: %u\n", t);
+    tsink_write_blocking(buf,
+                         snprintf(buf, sizeof(buf), "time in ms: %u\n", t));
   }
 
-  prints("time elapsed: %u\n", time);
-
-  static constexpr uint8_t configNUM_TASKS = BENCHMARK_N + 5;
-  static char stat_buf[50 * configNUM_TASKS];
-
-  vTaskGetRunTimeStats(stat_buf);
+  vTaskGetRunTimeStats(buf);
   tsink_write_str("===================================\n");
-  prints("Task\t\tTime\t\t%%\n");
-  tsink_write_str(stat_buf);
+  tsink_write_str("Task\t\tTime\t\t%%\n");
+  tsink_write_str(buf);
 
   while (true) {
     vTaskDelay(1000);
