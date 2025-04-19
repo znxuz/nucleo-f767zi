@@ -155,6 +155,14 @@ header file. */
       taskDISABLE_INTERRUPTS();                                               \
       for (;;);                                                               \
     }
+
+#define assert_ld(x, ld_pin)                                                     \
+      if ((x) == 0) {                                                           \
+        *(volatile uint32_t*)(0x40000000UL + 0x00020000UL + 0x0400UL + 0x18U) = \
+        ld_pin;                                                            \
+        taskDISABLE_INTERRUPTS();                                               \
+        for (;;);                                                               \
+      }
 /* USER CODE END 1 */
 
 /* Definitions that map the FreeRTOS port interrupt handlers to their CMSIS

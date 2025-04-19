@@ -12,8 +12,9 @@
 
 using namespace freertos;
 
+void tsink_benchmark();
+
 extern "C" {
-void benchmark_tsink();
 
 volatile unsigned long ulHighFrequencyTimerTicks;
 
@@ -49,7 +50,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
   if (huart->Instance != huart3.Instance) return;
-  tsink_consume_complete<TSINK_CALL_FROM::ISR>();
+  tsink::consume_complete<tsink::CALL_FROM::ISR>();
 }
 
 int ulog_formatter(char* buffer, size_t count, const char* format, va_list va) {
@@ -60,7 +61,7 @@ void my_console_logger(ulog_level_t severity, char* msg) {
   printf("[%s]: %s\n", ulog_level_name(severity), msg);
 }
 
-void _putchar(char c) { tsink_write_blocking(&c, 1); }
+void _putchar(char c) { tsink::write_blocking(&c, 1); }
 
 void application_start() {
   ULOG_INIT();
@@ -86,14 +87,12 @@ void application_start() {
   [[maybe_unused]] auto tsink_consume = [](const uint8_t* buf,
                                            size_t size) static {
     HAL_UART_Transmit(&huart3, buf, size, HAL_MAX_DELAY);
-    tsink_consume_complete<TSINK_CALL_FROM::NON_ISR>();
+    tsink::consume_complete<tsink::CALL_FROM::NON_ISR>();
   };
 
-  tsink_init(tsink_consume_dma, osPriorityAboveNormal);
-  // tsink_init(tsink_consume, osPriorityAboveNormal);
-  // benchmark_tsink();
-
-  ULOG_INFO("float: %f", 0.2f);
+  tsink::init(tsink_consume_dma, osPriorityAboveNormal);
+  // tsink::init(tsink_consume, osPriorityAboveNormal);
+  tsink_benchmark();
 
   osKernelStart();
 }
