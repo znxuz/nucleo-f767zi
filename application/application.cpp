@@ -9,10 +9,14 @@
 
 #include <freertos-threadsafe-sink/threadsafe_sink.hpp>
 #include <utility>
+#include <string_view>
 
+using namespace std::string_view_literals;
 using namespace freertos;
 
 void tsink_benchmark();
+
+tsink<2048>* sink{};
 
 extern "C" {
 
@@ -50,7 +54,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef* huart) {
   if (huart->Instance != huart3.Instance) return;
-  tsink::consume_complete<tsink::CALL_FROM::ISR>();
+  sink->consume_complete<CALL_FROM::ISR>();
 }
 
 int ulog_formatter(char* buffer, size_t count, const char* format, va_list va) {
@@ -61,7 +65,8 @@ void my_console_logger(ulog_level_t severity, char* msg) {
   printf("[%s]: %s\n", ulog_level_name(severity), msg);
 }
 
-void _putchar(char c) { tsink::write_blocking(&c, 1); }
+// not used by printf.h if formatted into a pre-allocated buffer
+void _putchar(char c) { sink->write_blocking(&c, 1); }
 
 void application_start() {
   ULOG_INIT();
@@ -87,11 +92,13 @@ void application_start() {
   [[maybe_unused]] auto tsink_consume = [](const uint8_t* buf,
                                            size_t size) static {
     HAL_UART_Transmit(&huart3, buf, size, HAL_MAX_DELAY);
-    tsink::consume_complete<tsink::CALL_FROM::NON_ISR>();
+    sink->consume_complete<CALL_FROM::NON_ISR>();
   };
 
-  tsink::init(tsink_consume_dma, osPriorityAboveNormal);
-  // tsink::init(tsink_consume, osPriorityAboveNormal);
+  // FIXME: RAII
+  sink = new tsink<2048>(tsink_consume_dma, osPriorityAboveNormal);
+  sink->write_blocking("start benchmarking\n"sv);
+
   tsink_benchmark();
 
   osKernelStart();
